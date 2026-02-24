@@ -41,6 +41,8 @@ export interface SelectedCitation {
     text: string;
     /** Full article or book title used as a tooltip. */
     title: string;
+    /** How the citation is rendered: "parenthetical" or "narrative". */
+    mode: CitationMode;
 }
 
 type Props = {
@@ -123,7 +125,9 @@ export function formatCitationLabel(
     if (mode === "narrative") {
         return year ? `${author} (${year})` : author;
     }
-    return year ? `(${author}, ${year})` : `(${author})`;
+    // Parenthetical: no outer parens – CSS adds them when rendering the node
+    // (and groups consecutive citations: "Smith, 2020; Jones, 2021").
+    return year ? `${author}, ${year}` : author;
 }
 
 /**
@@ -259,6 +263,7 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
             key: item.key,
             text: formatCitationLabel(item, mode),
             title: item.data.title ?? "",
+            mode,
         }));
 
         onSelect(citations, mode);

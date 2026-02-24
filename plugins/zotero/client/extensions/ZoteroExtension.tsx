@@ -97,8 +97,8 @@ export default class ZoteroExtension extends Extension {
             return;
         }
 
-        const nodes = items.map(({ key, text, title }) =>
-            citationType.create({ key, text, title })
+        const nodes = items.map(({ key, text, title, mode }) =>
+            citationType.create({ key, text, title, mode: mode ?? "parenthetical" })
         );
 
         const { from, to } = freshState.selection;

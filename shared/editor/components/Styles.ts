@@ -570,6 +570,32 @@ width: 100%;
   }
 }
 
+.citation {
+  cursor: default;
+}
+
+/* Parenthetical citations: consecutive spans share one pair of parens,
+   separated by semicolons: (Kovács, 2019; Szabó, 2020).
+   The CSS adjacent-sibling combinator (+ ) works across text nodes so
+   atoms inserted without whitespace between them are correctly grouped. */
+.citation[data-mode="parenthetical"]:not(
+    .citation[data-mode="parenthetical"] + .citation[data-mode="parenthetical"]
+  )::before {
+  content: "(";
+}
+
+.citation[data-mode="parenthetical"]:not(
+    :has(+ .citation[data-mode="parenthetical"])
+  )::after {
+  content: ")";
+}
+
+.citation[data-mode="parenthetical"]:has(
+    + .citation[data-mode="parenthetical"]
+  )::after {
+  content: "; ";
+}
+
 > div {
   background: transparent;
 }

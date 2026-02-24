@@ -26,6 +26,8 @@ export default class Citation extends Node {
                 text: { default: "" },
                 /** Article or book title, used as a tooltip */
                 title: { default: "" },
+                /** How the citation is rendered: "parenthetical" (default) or "narrative" */
+                mode: { default: "parenthetical" },
             },
             inline: true,
             marks: "",
@@ -40,25 +42,44 @@ export default class Citation extends Node {
                         if (!key) {
                             return false;
                         }
+                        const text = dom.dataset.text ?? "";
+                        const storedMode = dom.dataset.mode;
+                        const mode =
+                            storedMode ??
+                            (/\s\(\d{4}\)\s*$/.test(text)
+                                ? "narrative"
+                                : "parenthetical");
                         return {
                             key,
-                            text: dom.dataset.text ?? "",
+                            text,
                             title: dom.dataset.title ?? "",
+                            mode,
                         };
                     },
                 },
             ],
-            toDOM: (node: ProsemirrorNode) => [
-                "span",
-                {
-                    class: "citation",
-                    "data-key": node.attrs.key,
-                    "data-text": node.attrs.text,
-                    "data-title": node.attrs.title,
-                    title: node.attrs.title || undefined,
-                },
-                `[${node.attrs.text || node.attrs.key}]`,
-            ],
+            toDOM: (node: ProsemirrorNode) => {
+                const rawText = node.attrs.text || node.attrs.key;
+                // Strip outer parens from old-format parenthetical labels,
+                // e.g. "(Smith, 2020)" → "Smith, 2020"  (CSS adds them back).
+                const isParenthetical = node.attrs.mode === "parenthetical";
+                const displayText =
+                    isParenthetical && /^\(.+\)$/.test(rawText)
+                        ? rawText.slice(1, -1)
+                        : rawText;
+                return [
+                    "span",
+                    {
+                        class: "citation",
+                        "data-key": node.attrs.key,
+                        "data-text": node.attrs.text,
+                        "data-title": node.attrs.title,
+                        "data-mode": node.attrs.mode ?? "parenthetical",
+                        title: node.attrs.title || undefined,
+                    },
+                    displayText,
+                ];
+            },
         };
     }
 
@@ -74,11 +95,21 @@ export default class Citation extends Node {
     parseMarkdown() {
         return {
             node: "citation",
-            getAttrs: (tok: Token) => ({
-                key: tok.attrGet("key"),
-                text: tok.attrGet("text"),
-                title: tok.attrGet("title"),
-            }),
+            getAttrs: (tok: Token) => {
+                const text = tok.attrGet("text") ?? "";
+                const storedMode = tok.attrGet("mode");
+                const mode =
+                    storedMode ??
+                    (/\s\(\d{4}\)\s*$/.test(text)
+                        ? "narrative"
+                        : "parenthetical");
+                return {
+                    key: tok.attrGet("key"),
+                    text,
+                    title: tok.attrGet("title"),
+                    mode,
+                };
+            },
         };
     }
 }
@@ -140,10 +171,15 @@ function citationRule(md: any) {
                 const key = match[1];
                 const text = textTok.content;
 
+                const isNarrative = /\s\(\d{4}\)\s*$/.test(text);
                 const citationTok = new state.Token("citation", "", 0);
                 citationTok.attrSet("key", key);
                 citationTok.attrSet("text", text);
                 citationTok.attrSet("title", "");
+                citationTok.attrSet(
+                    "mode",
+                    isNarrative ? "narrative" : "parenthetical"
+                );
                 newChildren.push(citationTok);
 
                 // Skip the text and close tokens we consumed
@@ -160,8 +196,14 @@ function citationRule(md: any) {
     md.renderer.rules["citation"] = (tokens: any[], idx: number) => {
         const tok = tokens[idx];
         const key = tok.attrGet("key") ?? "";
-        const text = tok.attrGet("text") ?? key;
+        const rawText = tok.attrGet("text") ?? key;
+        const mode = tok.attrGet("mode") ?? "parenthetical";
         const title = tok.attrGet("title") ?? "";
-        return `<span class="citation" data-key="${key}" data-text="${text}" data-title="${title}">[${text}]</span>`;
+        // Strip outer parens from old-format parenthetical labels for CSS grouping.
+        const displayText =
+            mode === "parenthetical" && /^\(.+\)$/.test(rawText)
+                ? rawText.slice(1, -1)
+                : rawText;
+        return `<span class="citation" data-key="${key}" data-text="${rawText}" data-title="${title}" data-mode="${mode}">${displayText}</span>`;
     };
 }
