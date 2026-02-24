@@ -76,10 +76,8 @@ router.get(
 
         const settings = await requireZoteroSettings(user.id);
 
-        const zoteroUrl = new URL(
-            `/users/${settings.userId}/items`,
-            settings.url.endsWith("/") ? settings.url : settings.url + "/"
-        );
+        const base = settings.url.replace(/\/+$/, "");
+        const zoteroUrl = new URL(`${base}/users/${settings.userId}/items`);
         zoteroUrl.searchParams.set("q", q);
         zoteroUrl.searchParams.set("limit", String(limit));
         zoteroUrl.searchParams.set("qmode", "titleCreatorYear");
@@ -147,10 +145,8 @@ router.post(
 
         const settings = await requireZoteroSettings(user.id);
 
-        const zoteroUrl = new URL(
-            `/users/${settings.userId}/items`,
-            settings.url.endsWith("/") ? settings.url : settings.url + "/"
-        );
+        const base = settings.url.replace(/\/+$/, "");
+        const zoteroUrl = new URL(`${base}/users/${settings.userId}/items`);
         zoteroUrl.searchParams.set("itemKey", keys.join(","));
         zoteroUrl.searchParams.set("format", "bib");
         zoteroUrl.searchParams.set("style", style);
