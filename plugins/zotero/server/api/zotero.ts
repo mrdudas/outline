@@ -121,24 +121,116 @@ router.get(
 // POST /api/zotero.bibliography
 // ---------------------------------------------------------------------------
 
+type ZoteroCreator = {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    creatorType?: string;
+};
+
+type ZoteroItemData = {
+    title?: string;
+    date?: string;
+    itemType?: string;
+    creators?: ZoteroCreator[];
+    publicationTitle?: string;
+    journalAbbreviation?: string;
+    volume?: string;
+    issue?: string;
+    pages?: string;
+    publisher?: string;
+    place?: string;
+    DOI?: string;
+    url?: string;
+};
+
+/**
+ * Formats a single Zotero item as a plain-text APA-like bibliography entry.
+ * Used as fallback when the Zotero server does not support citeproc
+ * (`format=bib` returns 500 on many self-hosted instances).
+ *
+ * @param data - raw Zotero item data fields.
+ * @returns HTML paragraph string for the reference.
+ */
+function formatBibEntry(data: ZoteroItemData): string {
+    const escape = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    const creators = data.creators ?? [];
+    const authors = creators.filter(
+        (c) => c.creatorType === "author" || creators.length === 1
+    );
+
+    let authorStr = "";
+    if (authors.length === 0) {
+        authorStr = "Unknown Author";
+    } else {
+        authorStr = authors
+            .map((a) => {
+                if (a.lastName && a.firstName) {
+                    return `${a.lastName}, ${a.firstName.charAt(0)}.`;
+                }
+                return a.lastName ?? a.name ?? "Unknown";
+            })
+            .join(", & ");
+    }
+
+    const year = data.date
+        ? new Date(data.date).getFullYear() || data.date.slice(0, 4)
+        : "n.d.";
+
+    const title = data.title ? escape(data.title) : "Untitled";
+
+    const parts: string[] = [`${escape(authorStr)} (${year}). ${title}.`];
+
+    const journal = data.publicationTitle ?? data.journalAbbreviation;
+    if (journal) {
+        let journalPart = `<em>${escape(journal)}</em>`;
+        if (data.volume) {
+            journalPart += `, <em>${escape(data.volume)}</em>`;
+            if (data.issue) {
+                journalPart += `(${escape(data.issue)})`;
+            }
+        }
+        if (data.pages) {
+            journalPart += `, ${escape(data.pages)}`;
+        }
+        parts.push(journalPart + ".");
+    } else if (data.publisher) {
+        const pub = data.place
+            ? `${escape(data.place)}: ${escape(data.publisher)}`
+            : escape(data.publisher);
+        parts.push(`${pub}.`);
+    }
+
+    if (data.DOI) {
+        parts.push(`https://doi.org/${escape(data.DOI)}`);
+    } else if (data.url) {
+        parts.push(escape(data.url));
+    }
+
+    return `<p>${parts.join(" ")}</p>`;
+}
+
 /**
  * POST /api/zotero.bibliography
  *
- * Fetches a formatted bibliography for the given item keys from the
- * Zotero Web API and returns the raw XHTML fragment produced by Zotero.
+ * Fetches the requested items as JSON from the Zotero API, then formats
+ * them into an APA-like HTML bibliography server-side. This approach works
+ * with both the Zotero cloud API and self-hosted instances that do not have
+ * the citeproc endpoint enabled.
  *
- * Body params: `keys` (string[], max 50), `style` (CSL style name,
- * default "apa"), `locale` (IETF tag, default "en-US").
+ * Body params: `keys` (string[], max 50).
  *
- * Returns `{ data: { bibliography: string } }` where `bibliography` is
- * the XHTML string that can be inserted directly into the document.
+ * Returns `{ data: { bibliography: string } }` where `bibliography` is an
+ * HTML string that can be inserted directly into the document.
  */
 router.post(
     "zotero.bibliography",
     auth(),
     validate(T.ZoteroBibliographySchema),
     async (ctx: APIContext<T.ZoteroBibliographyReq>) => {
-        const { keys, style, locale } = ctx.input.body;
+        const { keys } = ctx.input.body;
         const { user } = ctx.state.auth;
 
         const settings = await requireZoteroSettings(user.id);
@@ -146,16 +238,14 @@ router.post(
         const base = settings.url.replace(/\/+$/, "");
         const zoteroUrl = new URL(`${base}/users/${settings.userId}/items`);
         zoteroUrl.searchParams.set("itemKey", keys.join(","));
-        zoteroUrl.searchParams.set("format", "bib");
-        zoteroUrl.searchParams.set("style", style);
-        zoteroUrl.searchParams.set("locale", locale);
+        zoteroUrl.searchParams.set("include", "data");
         zoteroUrl.searchParams.set("v", "3");
 
         const res = await fetch(zoteroUrl.toString(), {
             headers: {
                 "Zotero-API-Key": settings.apiKey,
                 "Zotero-API-Version": "3",
-                Accept: "text/html",
+                Accept: "application/json",
             },
         });
 
@@ -165,7 +255,19 @@ router.post(
             );
         }
 
-        const html = await res.text();
+        const rawItems = (await res.json()) as Array<{
+            key: string;
+            data: ZoteroItemData;
+        }>;
+
+        // Preserve the order requested by the client
+        const keyOrder = new Map(keys.map((k, i) => [k, i]));
+        const sorted = [...rawItems].sort(
+            (a, b) => (keyOrder.get(a.key) ?? 0) - (keyOrder.get(b.key) ?? 0)
+        );
+
+        const entries = sorted.map((item) => formatBibEntry(item.data));
+        const html = `<div data-zotero-bibliography="1">\n${entries.join("\n")}\n</div>`;
 
         ctx.body = {
             data: { bibliography: html },
