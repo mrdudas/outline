@@ -40,29 +40,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build the base image (compiles the app) and keep it locally
-      # so the final Dockerfile can reference it via BASE_IMAGE arg.
-      - name: Build base image
+      # Single multi-stage build: builder stage compiles the app,
+      # runner stage creates the slim production image.
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.base
-          push: false
-          load: true
-          tags: outline-base:local
-          cache-from: type=gha,scope=base
-          cache-to: type=gha,mode=max,scope=base
-
-      # Build the slim runtime image and push to ghcr.io
-      - name: Build and push final image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.combined
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            BASE_IMAGE=outline-base:local
-          cache-from: type=gha,scope=final
-          cache-to: type=gha,mode=max,scope=final
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
