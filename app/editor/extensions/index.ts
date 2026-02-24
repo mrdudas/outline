@@ -13,6 +13,7 @@ import PasteHandler from "~/editor/extensions/PasteHandler";
 import PreventTab from "~/editor/extensions/PreventTab";
 import SelectionToolbarExtension from "~/editor/extensions/SelectionToolbar";
 import SmartText from "~/editor/extensions/SmartText";
+import ZoteroExtension from "../../../plugins/zotero/client/extensions/ZoteroExtension";
 
 type Nodes = (typeof Node | typeof Mark | typeof Extension)[];
 
@@ -28,6 +29,7 @@ export const withUIExtensions = (nodes: Nodes) => [
   HoverPreviewsExtension,
   SelectionToolbarExtension,
   DiagramsExtension,
+  ZoteroExtension,
   // Order these default key handlers last
   PreventTab,
   Keys,

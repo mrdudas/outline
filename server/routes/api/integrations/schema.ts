@@ -81,6 +81,15 @@ export const IntegrationsCreateSchema = BaseSchema.extend({
         })
       )
       .or(z.object({ serviceTeamId: z.string() }))
+      .or(
+        z.object({
+          zotero: z.object({
+            url: z.url(),
+            apiKey: z.string(),
+            userId: z.string(),
+          }),
+        })
+      )
       .optional(),
   }),
 });
@@ -132,6 +141,15 @@ export const IntegrationsUpdateSchema = BaseSchema.extend({
         })
       )
       .or(z.object({ serviceTeamId: z.string() }))
+      .or(
+        z.object({
+          zotero: z.object({
+            url: z.url(),
+            apiKey: z.string(),
+            userId: z.string(),
+          }),
+        })
+      )
       .optional(),
 
     /** Integration events */

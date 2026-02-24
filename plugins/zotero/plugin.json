@@ -1,0 +1,6 @@
+{
+    "id": "zotero",
+    "name": "Zotero",
+    "priority": 50,
+    "description": "Connect your Zotero library to search and insert citations and bibliographies in documents."
+}

@@ -44,7 +44,7 @@ async function build() {
       "yarn babel --extensions .ts,.tsx --quiet -d ./build/server ./server"
     ),
     execAsync(
-      "yarn babel --extensions .ts,.tsx --quiet -d ./build/shared ./shared"
+      "yarn babel --extensions .ts,.tsx --copy-files --quiet -d ./build/shared ./shared"
     ),
   ]);
 

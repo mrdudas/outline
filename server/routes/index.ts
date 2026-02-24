@@ -89,6 +89,23 @@ if (env.isProduction) {
   });
 }
 
+router.get("/manifest.webmanifest", async (ctx) => {
+  try {
+    await send(ctx, "manifest.webmanifest", {
+      root: path.join(__dirname, "../../app/"),
+      setHeaders: (res) => {
+        res.setHeader("Content-Type", "application/manifest+json");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+      },
+    });
+  } catch (err) {
+    if (err.status !== 404) {
+      throw err;
+    }
+    ctx.status = 404;
+  }
+});
+
 router.get("/locales/:lng.json", async (ctx) => {
   const { lng } = ctx.params;
 
@@ -123,8 +140,8 @@ router.get("/.well-known/oauth-authorization-server", async (ctx) => {
     revocation_endpoint: `${origin}/oauth/revoke`,
     ...(!env.OAUTH_DISABLE_DCR &&
       mcpEnabled && {
-        registration_endpoint: `${origin}/oauth/register`,
-      }),
+      registration_endpoint: `${origin}/oauth/register`,
+    }),
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     token_endpoint_auth_methods_supported: ["client_secret_post", "none"],
@@ -214,11 +231,11 @@ router.get("*", async (ctx, next) => {
 
   const analytics = team
     ? await Integration.findAll({
-        where: {
-          teamId: team.id,
-          type: IntegrationType.Analytics,
-        },
-      })
+      where: {
+        teamId: team.id,
+        type: IntegrationType.Analytics,
+      },
+    })
     : [];
 
   const publicBranding =

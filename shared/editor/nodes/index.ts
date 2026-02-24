@@ -19,6 +19,7 @@ import Blockquote from "./Blockquote";
 import BulletList from "./BulletList";
 import CheckboxItem from "./CheckboxItem";
 import CheckboxList from "./CheckboxList";
+import Citation from "./Citation";
 import CodeBlock from "./CodeBlock";
 import CodeFence from "./CodeFence";
 import Doc from "./Doc";
@@ -116,6 +117,7 @@ export const richExtensions: Nodes = [
   Math,
   MathBlock,
   Mention,
+  Citation,
   ToggleBlock,
   // Container type nodes should be last so that key handlers are registered for content inside
   // the container nodes first.

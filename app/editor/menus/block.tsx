@@ -244,6 +244,18 @@ export default function blockMenuItems(
       keywords: "diagram flowchart draw.io",
     },
     {
+      name: "insertCitation",
+      title: "Zotero Citation",
+      icon: <Img src="/images/zotero.svg" alt="Zotero Citation" />,
+      keywords: "citation reference cite zotero academic bibliography",
+    },
+    {
+      name: "insertBibliography",
+      title: "Zotero Bibliography",
+      icon: <Img src="/images/zotero.svg" alt="Zotero Bibliography" />,
+      keywords: "bibliography references zotero reference list",
+    },
+    {
       name: "container_toggle",
       title: dictionary.toggleBlock,
       icon: <CollapseIcon />,

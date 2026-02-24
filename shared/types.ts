@@ -143,6 +143,7 @@ export enum IntegrationService {
   Linear = "linear",
   Figma = "figma",
   Notion = "notion",
+  Zotero = "zotero",
 }
 
 export type ImportableIntegrationService = Extract<
@@ -175,6 +176,7 @@ export type UserCreatableIntegrationService = Extract<
   | IntegrationService.Matomo
   | IntegrationService.Umami
   | IntegrationService.GitLab
+  | IntegrationService.Zotero
 >;
 
 export const UserCreatableIntegrationService = {
@@ -184,6 +186,7 @@ export const UserCreatableIntegrationService = {
   Matomo: IntegrationService.Matomo,
   Umami: IntegrationService.Umami,
   GitLab: IntegrationService.GitLab,
+  Zotero: IntegrationService.Zotero,
 } as const;
 
 export enum CollectionPermission {
@@ -205,80 +208,101 @@ export enum GroupPermission {
 
 export type IntegrationSettings<T> = T extends IntegrationType.Embed
   ? {
+    url?: string;
+    github?: {
+      installation: {
+        id: number;
+        account: { id: number; name: string; avatarUrl: string };
+      };
+    };
+    gitlab?: {
       url?: string;
-      github?: {
-        installation: {
-          id: number;
-          account: { id: number; name: string; avatarUrl: string };
-        };
+      installation?: {
+        id: number;
+        account: { id: number; name: string; avatarUrl: string };
       };
-      gitlab?: {
-        url?: string;
-        installation?: {
-          id: number;
-          account: { id: number; name: string; avatarUrl: string };
-        };
-      };
-      linear?: {
-        workspace: { id: string; name: string; key: string; logoUrl?: string };
-      };
-      diagrams?: {
-        url: string;
-      };
-    }
+    };
+    linear?: {
+      workspace: { id: string; name: string; key: string; logoUrl?: string };
+    };
+    diagrams?: {
+      url: string;
+    };
+    zotero?: {
+      /** Base URL of the Zotero instance, e.g. https://api.zotero.org */
+      url: string;
+      /** Zotero API key */
+      apiKey: string;
+      /** Zotero user ID */
+      userId: string;
+    };
+  }
   : T extends IntegrationType.Analytics
-    ? { measurementId: string; instanceUrl?: string; scriptName?: string }
-    : T extends IntegrationType.Post
-      ? { url: string; channel: string; channelId: string }
-      : T extends IntegrationType.Command
-        ? { serviceTeamId: string }
-        : T extends IntegrationType.Import
-          ? {
-              externalWorkspace: { id: string; name: string; iconUrl?: string };
-            }
-          : T extends IntegrationType.LinkedAccount
-            ? {
-                slack?: { serviceTeamId: string; serviceUserId: string };
-                figma?: {
-                  account: {
-                    id: string;
-                    name: string;
-                    email: string;
-                    avatarUrl: string;
-                  };
-                };
-              }
-            :
-                | { url: string }
-                | {
-                    github?: {
-                      installation: {
-                        id: number;
-                        account: {
-                          id?: number;
-                          name: string;
-                          avatarUrl?: string;
-                        };
-                      };
-                    };
-                    gitlab?: {
-                      url?: string;
-                      installation?: {
-                        id: number;
-                        account: {
-                          id?: number;
-                          name: string;
-                          avatarUrl?: string;
-                        };
-                      };
-                    };
-                    diagrams?: {
-                      url: string;
-                    };
-                  }
-                | { serviceTeamId: string }
-                | { measurementId: string }
-                | undefined;
+  ? { measurementId: string; instanceUrl?: string; scriptName?: string }
+  : T extends IntegrationType.Post
+  ? { url: string; channel: string; channelId: string }
+  : T extends IntegrationType.Command
+  ? { serviceTeamId: string }
+  : T extends IntegrationType.Import
+  ? {
+    externalWorkspace: { id: string; name: string; iconUrl?: string };
+  }
+  : T extends IntegrationType.LinkedAccount
+  ? {
+    slack?: { serviceTeamId: string; serviceUserId: string };
+    figma?: {
+      account: {
+        id: string;
+        name: string;
+        email: string;
+        avatarUrl: string;
+      };
+    };
+    zotero?: {
+      /** Base URL of the Zotero instance, e.g. https://api.zotero.org */
+      url: string;
+      /** Zotero API key */
+      apiKey: string;
+      /** Zotero user or group ID */
+      userId: string;
+    };
+  }
+  :
+  | { url: string }
+  | {
+    github?: {
+      installation: {
+        id: number;
+        account: {
+          id?: number;
+          name: string;
+          avatarUrl?: string;
+        };
+      };
+    };
+    gitlab?: {
+      url?: string;
+      installation?: {
+        id: number;
+        account: {
+          id?: number;
+          name: string;
+          avatarUrl?: string;
+        };
+      };
+    };
+    diagrams?: {
+      url: string;
+    };
+    zotero?: {
+      url: string;
+      apiKey: string;
+      userId: string;
+    };
+  }
+  | { serviceTeamId: string }
+  | { measurementId: string }
+  | undefined;
 
 export enum UserPreference {
   /** Whether reopening the app should redirect to the last viewed document. */
@@ -467,32 +491,32 @@ export type NotificationData = {
 
 export type NotificationSettings = {
   [event in NotificationEventType]?:
-    | {
-        [type in NotificationChannelType]?: boolean;
-      }
-    | boolean;
+  | {
+    [type in NotificationChannelType]?: boolean;
+  }
+  | boolean;
 };
 
 export const NotificationEventDefaults: Record<NotificationEventType, boolean> =
-  {
-    [NotificationEventType.PublishDocument]: false,
-    [NotificationEventType.UpdateDocument]: true,
-    [NotificationEventType.CreateCollection]: false,
-    [NotificationEventType.CreateComment]: true,
-    [NotificationEventType.ResolveComment]: true,
-    [NotificationEventType.ReactionsCreate]: true,
-    [NotificationEventType.CreateRevision]: false,
-    [NotificationEventType.MentionedInDocument]: true,
-    [NotificationEventType.MentionedInComment]: true,
-    [NotificationEventType.GroupMentionedInDocument]: true,
-    [NotificationEventType.GroupMentionedInComment]: true,
-    [NotificationEventType.InviteAccepted]: true,
-    [NotificationEventType.Onboarding]: true,
-    [NotificationEventType.Features]: true,
-    [NotificationEventType.ExportCompleted]: true,
-    [NotificationEventType.AddUserToDocument]: true,
-    [NotificationEventType.AddUserToCollection]: true,
-  };
+{
+  [NotificationEventType.PublishDocument]: false,
+  [NotificationEventType.UpdateDocument]: true,
+  [NotificationEventType.CreateCollection]: false,
+  [NotificationEventType.CreateComment]: true,
+  [NotificationEventType.ResolveComment]: true,
+  [NotificationEventType.ReactionsCreate]: true,
+  [NotificationEventType.CreateRevision]: false,
+  [NotificationEventType.MentionedInDocument]: true,
+  [NotificationEventType.MentionedInComment]: true,
+  [NotificationEventType.GroupMentionedInDocument]: true,
+  [NotificationEventType.GroupMentionedInComment]: true,
+  [NotificationEventType.InviteAccepted]: true,
+  [NotificationEventType.Onboarding]: true,
+  [NotificationEventType.Features]: true,
+  [NotificationEventType.ExportCompleted]: true,
+  [NotificationEventType.AddUserToDocument]: true,
+  [NotificationEventType.AddUserToCollection]: true,
+};
 
 export enum UnfurlResourceType {
   URL = "url",
