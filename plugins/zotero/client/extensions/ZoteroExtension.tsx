@@ -1,6 +1,6 @@
 import { action, observable } from "mobx";
 import { observer } from "mobx-react";
-import { Fragment } from "prosemirror-model";
+import { Fragment, Slice } from "prosemirror-model";
 import { DOMParser as ProseDOMParser } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
 import Extension from "@shared/editor/lib/Extension";
@@ -168,7 +168,11 @@ export default class ZoteroExtension extends Extension {
         const tr = freshState.tr;
 
         if (existingRange) {
-            tr.replaceRange(existingRange.from, existingRange.to, fragment.content);
+            tr.replaceRange(
+                existingRange.from,
+                existingRange.to,
+                new Slice(fragment.content, 0, 0)
+            );
         } else {
             // Insert at the current cursor (saved before the async gap)
             const insertFrom = state.selection.to;

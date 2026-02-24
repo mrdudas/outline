@@ -8,7 +8,6 @@ import { IntegrationType, IntegrationService } from "@shared/types";
 import type Integration from "~/models/Integration";
 import { IntegrationScene } from "~/scenes/Settings/components/IntegrationScene";
 import SettingRow from "~/scenes/Settings/components/SettingRow";
-import Actions from "~/components/Actions";
 import Button from "~/components/Button";
 import Flex from "~/components/Flex";
 import Heading from "~/components/Heading";

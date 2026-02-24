@@ -151,7 +151,6 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
     const [mode, setMode] = React.useState<CitationMode>("parenthetical");
     const debounceRef = React.useRef<ReturnType<typeof setTimeout>>();
     const inputRef = React.useRef<HTMLInputElement>(null);
-    const containerRef = React.useRef<HTMLDivElement>(null);
 
     // Track whether the dropdown is visible
     const dropdownOpen = query.trim().length > 0;
@@ -559,11 +558,11 @@ const ResultItem = styled.div<{ highlighted: boolean; selected: boolean }>`
   padding: 9px 16px;
   cursor: pointer;
   background: ${({ highlighted }) =>
-        highlighted ? s("listHoverBackground") : "transparent"};
+        highlighted ? s("listItemHoverBackground") : "transparent"};
   opacity: ${({ selected }) => (selected ? 0.55 : 1)};
 
   &:hover {
-    background: ${s("listHoverBackground")};
+    background: ${s("listItemHoverBackground")};
   }
 `;
 
@@ -632,7 +631,7 @@ const Footer = styled.div`
 const ModeToggle = styled.div`
   display: flex;
   gap: 2px;
-  background: ${s("secondaryBackground")};
+  background: ${s("backgroundSecondary")};
   border-radius: 6px;
   padding: 2px;
 `;
