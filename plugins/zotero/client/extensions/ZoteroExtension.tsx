@@ -1,4 +1,5 @@
 import { action, observable } from "mobx";
+import { observer } from "mobx-react";
 import { Fragment } from "prosemirror-model";
 import { DOMParser as ProseDOMParser } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
@@ -11,6 +12,11 @@ import useCurrentUser from "~/hooks/useCurrentUser";
 import useStores from "~/hooks/useStores";
 import type { SelectedCitation, CitationMode } from "../components/CitationSearch";
 import CitationSearch from "../components/CitationSearch";
+
+type ZoteroSettings = {
+    defaultStyle?: string;
+    defaultLocale?: string;
+};
 
 type ZoteroState = {
     /** Whether the citation picker dialog is currently open. */
@@ -37,7 +43,7 @@ export default class ZoteroExtension extends Extension {
     }
 
     /** Observable state shared with the CitationSearch widget. */
-    protected state: ZoteroState = observable({
+    public state: ZoteroState = observable({
         open: false,
         style: "apa",
         locale: "en-US",
@@ -223,37 +229,50 @@ export default class ZoteroExtension extends Extension {
     }
 
     /** Rendered inside the editor to host the citation search overlay. */
-    widget = (_props: WidgetProps) => {
-        const { integrations } = useStores();
-        const user = useCurrentUser();
-
-        React.useEffect(() => {
-            const integration = integrations.orderedData.find(
-                (i) =>
-                    i.type === IntegrationType.LinkedAccount &&
-                    i.service === IntegrationService.Zotero &&
-                    i.userId === user.id
-            );
-            const settings = (integration?.settings as any)?.zotero;
-            action(() => {
-                this.state.style = settings?.defaultStyle ?? "apa";
-                this.state.locale = settings?.defaultLocale ?? "en-US";
-            })();
-        }, [integrations.orderedData, user.id]);
-
-        return (
-            <CitationSearch
-                isOpen={this.state.open}
-                onClose={action(() => {
-                    this.state.open = false;
-                })}
-                onSelect={(items: SelectedCitation[], _mode: CitationMode) => {
-                    action(() => {
-                        this.state.open = false;
-                    })();
-                    this.insertCitationNodes(items);
-                }}
-            />
-        );
-    };
+    widget = (_props: WidgetProps) => (
+        <CitationWidget extension={this} />
+    );
 }
+
+type CitationWidgetProps = {
+    extension: ZoteroExtension;
+};
+
+/**
+ * Inner React component that is allowed to call hooks.
+ * Reads the Zotero integration settings and syncs them into the extension
+ * observable state, then renders the CitationSearch dialog.
+ */
+const CitationWidget = observer(function CitationWidget({ extension }: CitationWidgetProps) {
+    const { integrations } = useStores();
+    const user = useCurrentUser();
+
+    React.useEffect(() => {
+        const integration = integrations.orderedData.find(
+            (i) =>
+                i.type === IntegrationType.LinkedAccount &&
+                i.service === IntegrationService.Zotero &&
+                (i as any).userId === user.id
+        );
+        const settings = ((integration?.settings as any)?.zotero) as ZoteroSettings | undefined;
+        action(() => {
+            extension.state.style = settings?.defaultStyle ?? "apa";
+            extension.state.locale = settings?.defaultLocale ?? "en-US";
+        })();
+    }, [integrations.orderedData, user.id, extension]);
+
+    return (
+        <CitationSearch
+            isOpen={extension.state.open}
+            onClose={action(() => {
+                extension.state.open = false;
+            })}
+            onSelect={(items: SelectedCitation[], _mode: CitationMode) => {
+                action(() => {
+                    extension.state.open = false;
+                })();
+                extension.insertCitationNodes(items);
+            }}
+        />
+    );
+});
