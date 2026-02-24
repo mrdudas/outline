@@ -1,5 +1,5 @@
 import { observer } from "mobx-react";
-import { CheckmarkIcon, SearchIcon } from "outline-icons";
+import { CloseIcon, SearchIcon } from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
@@ -51,11 +51,23 @@ type Props = {
     /**
      * Called when the user confirms their selection.
      *
-     * @param items - one or more selected citations with pre-formatted labels.
+     * @param items - one or more selected citations, sorted alphabetically by author.
      * @param mode - the citation mode chosen by the user.
      */
     onSelect: (items: SelectedCitation[], mode: CitationMode) => void;
 };
+
+/** Returns the first author's last name for sorting and label building. */
+function firstAuthorLastName(item: ZoteroItem): string {
+    const creators = item.data.creators ?? [];
+    const authors = creators.filter(
+        (c) => c.creatorType === "author" || creators.length === 1
+    );
+    if (authors.length === 0) {
+        return "Unknown";
+    }
+    return authors[0].lastName ?? authors[0].name ?? "Unknown";
+}
 
 /** Returns the author portion of an APA-style in-text citation. */
 function buildAuthorPart(item: ZoteroItem): string {
@@ -94,10 +106,8 @@ function buildYearPart(item: ZoteroItem): string {
  * Formats the inline citation label for a Zotero item according to the
  * chosen mode.
  *
- * - **parenthetical** – `(Smith et al., 2020)` – placed inside parentheses,
- *   e.g. `…more research is needed (Smith et al., 2020).`
- * - **narrative** – `Smith et al. (2020)` – author name is part of the
- *   sentence, e.g. `…as Smith et al. (2020) demonstrated.`
+ * - **parenthetical** – `(Smith et al., 2020)` – placed inside parentheses.
+ * - **narrative** – `Smith et al. (2020)` – author name part of the sentence.
  *
  * @param item - Zotero item.
  * @param mode - citation mode.
@@ -113,39 +123,43 @@ export function formatCitationLabel(
     if (mode === "narrative") {
         return year ? `${author} (${year})` : author;
     }
-
-    // parenthetical
     return year ? `(${author}, ${year})` : `(${author})`;
 }
 
 /**
- * A search dialog that queries the Zotero library via the Outline server proxy
- * and lets the user pick one or more items to insert as inline citations.
+ * A tag/chip-based search dialog that queries the Zotero library via the
+ * Outline server proxy. Selected items appear as removable chips inside the
+ * search input area; searching remains active after each selection so
+ * multiple references can be picked without re-opening the dialog.
  *
- * Supports two insertion modes (narrative / parenthetical) and multi-select.
+ * On insert the selected items are sorted alphabetically by first-author
+ * last name (APA7 convention for multiple works in one parenthesis).
  */
 function CitationSearch({ isOpen, onClose, onSelect }: Props) {
     const { t } = useTranslation();
     const [query, setQuery] = React.useState("");
-    const [items, setItems] = React.useState<ZoteroItem[]>([]);
+    const [results, setResults] = React.useState<ZoteroItem[]>([]);
+    /** Ordered list of selected items (insertion order kept, sorted on confirm). */
+    const [selected, setSelected] = React.useState<ZoteroItem[]>([]);
     const [loading, setLoading] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
     const [highlightIndex, setHighlightIndex] = React.useState(0);
-    const [checkedKeys, setCheckedKeys] = React.useState<Set<string>>(
-        new Set()
-    );
     const [mode, setMode] = React.useState<CitationMode>("parenthetical");
     const debounceRef = React.useRef<ReturnType<typeof setTimeout>>();
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    // Track whether the dropdown is visible
+    const dropdownOpen = query.trim().length > 0;
 
     // Reset state every time the dialog opens
     React.useEffect(() => {
         if (isOpen) {
             setQuery("");
-            setItems([]);
+            setResults([]);
+            setSelected([]);
             setError(null);
             setHighlightIndex(0);
-            setCheckedKeys(new Set());
             setTimeout(() => inputRef.current?.focus(), 50);
         }
     }, [isOpen]);
@@ -156,7 +170,7 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
             clearTimeout(debounceRef.current);
         }
         if (!query.trim()) {
-            setItems([]);
+            setResults([]);
             return;
         }
         debounceRef.current = setTimeout(() => {
@@ -182,98 +196,127 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
                 "/zotero.search",
                 { q, limit: 20 }
             );
-            setItems(data.data ?? []);
+            setResults(data.data ?? []);
             setHighlightIndex(0);
-            setCheckedKeys(new Set());
         } catch (err) {
             setError(
                 err instanceof Error
                     ? err.message
                     : t("Failed to search Zotero. Check your settings.")
             );
-            setItems([]);
+            setResults([]);
         } finally {
             setLoading(false);
         }
     };
 
-    /** Toggles the checked state of an item. */
-    const toggleCheck = React.useCallback((key: string) => {
-        setCheckedKeys((prev) => {
-            const next = new Set(prev);
-            if (next.has(key)) {
-                next.delete(key);
-            } else {
-                next.add(key);
+    /**
+     * Adds an item to the selection (if not already present), then clears the
+     * search query so the user can immediately search for another reference.
+     *
+     * @param item - Zotero item to add.
+     */
+    const addItem = React.useCallback((item: ZoteroItem) => {
+        setSelected((prev) => {
+            if (prev.some((s) => s.key === item.key)) {
+                return prev;
             }
-            return next;
+            return [...prev, item];
         });
+        setQuery("");
+        setResults([]);
+        setTimeout(() => inputRef.current?.focus(), 0);
     }, []);
 
     /**
-     * Confirms the selection and calls the parent callback.
-     * Uses the currently checked items; if none are checked, uses the
-     * highlighted item instead.
+     * Removes an item from the selection.
+     *
+     * @param key - Zotero item key to remove.
+     */
+    const removeItem = React.useCallback((key: string) => {
+        setSelected((prev) => prev.filter((i) => i.key !== key));
+        setTimeout(() => inputRef.current?.focus(), 0);
+    }, []);
+
+    /**
+     * Confirms the selection, sorts by first-author last name (A→Z), and
+     * calls the parent callback.
      */
     const handleConfirm = React.useCallback(() => {
-        let targets: ZoteroItem[];
-
-        if (checkedKeys.size > 0) {
-            targets = items.filter((item) => checkedKeys.has(item.key));
-        } else if (items[highlightIndex]) {
-            targets = [items[highlightIndex]];
-        } else {
+        if (selected.length === 0) {
             return;
         }
 
-        const selected: SelectedCitation[] = targets.map((item) => ({
+        const sorted = [...selected].sort((a, b) =>
+            firstAuthorLastName(a).localeCompare(
+                firstAuthorLastName(b),
+                undefined,
+                { sensitivity: "base" }
+            )
+        );
+
+        const citations: SelectedCitation[] = sorted.map((item) => ({
             key: item.key,
             text: formatCitationLabel(item, mode),
             title: item.data.title ?? "",
         }));
 
-        onSelect(selected, mode);
-    }, [checkedKeys, items, highlightIndex, mode, onSelect]);
+        onSelect(citations, mode);
+    }, [selected, mode, onSelect]);
 
     /**
-     * Handles keyboard navigation within the dialog.
+     * Keyboard handler for the input field.
      *
-     * - Arrow keys move the highlight
-     * - Space toggles the highlighted item's checkbox
-     * - Enter confirms the selection
-     * - Escape closes the dialog
+     * - `ArrowDown/Up` – navigate dropdown
+     * - `Enter` – add highlighted result or confirm if no dropdown
+     * - `Backspace` on empty input – remove last chip
+     * - `Escape` – close
      *
      * @param e - React keyboard event.
      */
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         switch (e.key) {
             case "ArrowDown":
                 e.preventDefault();
-                setHighlightIndex((i) => Math.min(i + 1, items.length - 1));
+                setHighlightIndex((i) =>
+                    Math.min(i + 1, results.length - 1)
+                );
                 break;
             case "ArrowUp":
                 e.preventDefault();
                 setHighlightIndex((i) => Math.max(i - 1, 0));
                 break;
-            case " ":
-                e.preventDefault();
-                if (items[highlightIndex]) {
-                    toggleCheck(items[highlightIndex].key);
-                }
-                break;
             case "Enter":
                 e.preventDefault();
-                handleConfirm();
+                if (dropdownOpen && results[highlightIndex]) {
+                    addItem(results[highlightIndex]);
+                } else if (!dropdownOpen) {
+                    handleConfirm();
+                }
+                break;
+            case "Backspace":
+                if (query === "" && selected.length > 0) {
+                    removeItem(selected[selected.length - 1].key);
+                }
                 break;
             case "Escape":
-                onClose();
+                if (dropdownOpen) {
+                    setQuery("");
+                } else {
+                    onClose();
+                }
                 break;
             default:
                 break;
         }
     };
 
-    const hasItems = items.length > 0;
+    /** Short chip label: first author + year, no parentheses. */
+    const chipLabel = (item: ZoteroItem): string => {
+        const author = firstAuthorLastName(item);
+        const year = buildYearPart(item);
+        return year ? `${author}, ${year}` : author;
+    };
 
     return (
         <Modal
@@ -282,67 +325,109 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
             title={t("Search Zotero")}
             width={560}
         >
-            <Container onKeyDown={handleKeyDown}>
-                <SearchRow>
-                    <SearchIcon color="currentColor" size={20} />
-                    <SearchInput
+            <Container>
+                {/* Tag input area */}
+                <InputArea
+                    onClick={() => inputRef.current?.focus()}
+                    hasChips={selected.length > 0}
+                >
+                    {selected.length === 0 && !query && (
+                        <SearchIconWrapper>
+                            <SearchIcon color="currentColor" size={18} />
+                        </SearchIconWrapper>
+                    )}
+                    {selected.map((item) => (
+                        <Chip key={item.key} title={item.data.title}>
+                            <ChipLabel>{chipLabel(item)}</ChipLabel>
+                            <ChipRemove
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeItem(item.key);
+                                }}
+                                aria-label={t("Remove")}
+                                type="button"
+                            >
+                                <CloseIcon size={12} color="currentColor" />
+                            </ChipRemove>
+                        </Chip>
+                    ))}
+                    <InlineInput
                         ref={inputRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder={t("Search by title, author, keyword…")}
+                        onKeyDown={handleKeyDown}
+                        placeholder={
+                            selected.length === 0
+                                ? t("Search by title, author, keyword…")
+                                : t("Add another…")
+                        }
                         aria-label={t("Search Zotero")}
                         autoComplete="off"
                     />
-                </SearchRow>
+                </InputArea>
 
                 {error && <ErrorText>{error}</ErrorText>}
 
-                <Scrollable shadow style={{ maxHeight: 340 }}>
-                    {loading && <StatusText>{t("Searching…")}</StatusText>}
-                    {!loading && query && items.length === 0 && !error && (
-                        <StatusText>{t("No results found.")}</StatusText>
-                    )}
-                    {!loading &&
-                        items.map((item, index) => {
-                            const checked = checkedKeys.has(item.key);
-                            return (
-                                <ResultItem
-                                    key={item.key}
-                                    highlighted={index === highlightIndex}
-                                    checked={checked}
-                                    onClick={() => toggleCheck(item.key)}
-                                    onMouseEnter={() =>
-                                        setHighlightIndex(index)
-                                    }
-                                >
-                                    <CheckBox
-                                        aria-checked={checked}
-                                        role="checkbox"
-                                    >
-                                        {checked && (
-                                            <CheckmarkIcon
-                                                size={14}
-                                                color="currentColor"
-                                            />
-                                        )}
-                                    </CheckBox>
-                                    <ResultBody>
-                                        <ResultTitle>
-                                            {item.data.title ?? item.key}
-                                        </ResultTitle>
-                                        <ResultMeta>
-                                            {formatCitationLabel(item, mode)}
-                                            {item.data.publicationTitle
-                                                ? ` — ${item.data.publicationTitle}`
-                                                : ""}
-                                        </ResultMeta>
-                                    </ResultBody>
-                                </ResultItem>
-                            );
-                        })}
-                </Scrollable>
+                {/* Dropdown results */}
+                {dropdownOpen && (
+                    <DropdownWrapper>
+                        <Scrollable shadow style={{ maxHeight: 280 }}>
+                            {loading && (
+                                <StatusText>{t("Searching…")}</StatusText>
+                            )}
+                            {!loading && results.length === 0 && !error && (
+                                <StatusText>
+                                    {t("No results found.")}
+                                </StatusText>
+                            )}
+                            {!loading &&
+                                results.map((item, index) => {
+                                    const alreadySelected = selected.some(
+                                        (s) => s.key === item.key
+                                    );
+                                    return (
+                                        <ResultItem
+                                            key={item.key}
+                                            highlighted={
+                                                index === highlightIndex
+                                            }
+                                            selected={alreadySelected}
+                                            onMouseDown={(e) => {
+                                                // Use mousedown so the input doesn't lose focus
+                                                e.preventDefault();
+                                                if (!alreadySelected) {
+                                                    addItem(item);
+                                                } else {
+                                                    removeItem(item.key);
+                                                }
+                                            }}
+                                            onMouseEnter={() =>
+                                                setHighlightIndex(index)
+                                            }
+                                        >
+                                            <SelectedDot visible={alreadySelected} />
+                                            <ResultBody>
+                                                <ResultTitle>
+                                                    {item.data.title ?? item.key}
+                                                </ResultTitle>
+                                                <ResultMeta>
+                                                    {formatCitationLabel(
+                                                        item,
+                                                        mode
+                                                    )}
+                                                    {item.data.publicationTitle
+                                                        ? ` — ${item.data.publicationTitle}`
+                                                        : ""}
+                                                </ResultMeta>
+                                            </ResultBody>
+                                        </ResultItem>
+                                    );
+                                })}
+                        </Scrollable>
+                    </DropdownWrapper>
+                )}
 
-                {!query && (
+                {!dropdownOpen && selected.length === 0 && (
                     <HintText>
                         {t("Type to search your Zotero library…")}
                     </HintText>
@@ -368,21 +453,17 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
                         </ModeButton>
                     </ModeToggle>
 
-                    <FooterRight>
-                        {checkedKeys.size > 0 && (
-                            <SelectionCount>
-                                {checkedKeys.size}{" "}
-                                {t("selected")}
-                            </SelectionCount>
-                        )}
-                        <Button
-                            onClick={handleConfirm}
-                            disabled={!hasItems}
-                            type="button"
-                        >
-                            {t("Insert")}
-                        </Button>
-                    </FooterRight>
+                    <Button
+                        onClick={handleConfirm}
+                        disabled={selected.length === 0}
+                        type="button"
+                    >
+                        {selected.length > 1
+                            ? t("Insert {{n}} citations", {
+                                  n: selected.length,
+                              })
+                            : t("Insert")}
+                    </Button>
                 </Footer>
             </Container>
         </Modal>
@@ -393,17 +474,64 @@ const Container = styled.div`
   padding: 0;
 `;
 
-const SearchRow = styled.div`
+const InputArea = styled.div<{ hasChips: boolean }>`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 6px;
+  padding: ${({ hasChips }) => (hasChips ? "10px 12px" : "10px 16px")};
   border-bottom: 1px solid ${s("divider")};
-  color: ${s("textTertiary")};
+  cursor: text;
+  min-height: 48px;
 `;
 
-const SearchInput = styled.input`
+const SearchIconWrapper = styled.span`
+  color: ${s("textTertiary")};
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+`;
+
+const Chip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  background: ${s("accent")};
+  color: ${s("accentText")};
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 220px;
+  white-space: nowrap;
+`;
+
+const ChipLabel = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const ChipRemove = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.8;
+  flex-shrink: 0;
+
+  &:hover {
+    opacity: 1;
+  }
+`;
+
+const InlineInput = styled.input`
   flex: 1;
+  min-width: 140px;
   border: none;
   outline: none;
   background: transparent;
@@ -415,42 +543,33 @@ const SearchInput = styled.input`
   }
 `;
 
-const ResultItem = styled.div<{ highlighted: boolean; checked: boolean }>`
+const DropdownWrapper = styled.div`
+  border-bottom: 1px solid ${s("divider")};
+`;
+
+const ResultItem = styled.div<{ highlighted: boolean; selected: boolean }>`
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 9px 16px;
   cursor: pointer;
-  border-radius: 4px;
-  background: ${({ highlighted, checked }) =>
-        checked
-            ? s("listActiveBackground")
-            : highlighted
-            ? s("listHoverBackground")
-            : "transparent"};
+  background: ${({ highlighted }) =>
+        highlighted ? s("listHoverBackground") : "transparent"};
+  opacity: ${({ selected }) => (selected ? 0.55 : 1)};
 
   &:hover {
     background: ${s("listHoverBackground")};
   }
 `;
 
-const CheckBox = styled.div`
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
-  border: 1.5px solid ${s("textTertiary")};
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 2px;
-  background: transparent;
-
-  &[aria-checked="true"] {
-    background: ${s("accent")};
-    border-color: ${s("accent")};
-    color: ${s("accentText")};
-  }
+const SelectedDot = styled.div<{ visible: boolean }>`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${s("accent")};
+  margin-top: 6px;
+  flex-shrink: 0;
+  opacity: ${({ visible }) => (visible ? 1 : 0)};
 `;
 
 const ResultBody = styled.div`
@@ -525,17 +644,6 @@ const ModeButton = styled.button<{ active: boolean }>`
   box-shadow: ${({ active }) =>
         active ? "0 1px 2px rgba(0,0,0,0.1)" : "none"};
   transition: background 0.15s, color 0.15s;
-`;
-
-const FooterRight = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const SelectionCount = styled.span`
-  font-size: 12px;
-  color: ${s("textTertiary")};
 `;
 
 export default observer(CitationSearch);
