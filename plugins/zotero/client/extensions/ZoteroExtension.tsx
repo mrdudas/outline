@@ -1,14 +1,24 @@
 import { action, observable } from "mobx";
+import { Fragment } from "prosemirror-model";
 import { DOMParser as ProseDOMParser } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
 import Extension from "@shared/editor/lib/Extension";
 import type { CommandFactory, WidgetProps } from "@shared/editor/lib/Extension";
+import { IntegrationType, IntegrationService } from "@shared/types";
+import * as React from "react";
 import { client } from "~/utils/ApiClient";
+import useCurrentUser from "~/hooks/useCurrentUser";
+import useStores from "~/hooks/useStores";
+import type { SelectedCitation, CitationMode } from "../components/CitationSearch";
 import CitationSearch from "../components/CitationSearch";
 
 type ZoteroState = {
     /** Whether the citation picker dialog is currently open. */
     open: boolean;
+    /** Default CSL style for bibliography generation (from integration settings). */
+    style: string;
+    /** Default locale for bibliography formatting (from integration settings). */
+    locale: string;
 };
 
 /**
@@ -29,6 +39,8 @@ export default class ZoteroExtension extends Extension {
     /** Observable state shared with the CitationSearch widget. */
     protected state: ZoteroState = observable({
         open: false,
+        style: "apa",
+        locale: "en-US",
     });
 
     /**
@@ -63,24 +75,29 @@ export default class ZoteroExtension extends Extension {
     }
 
     /**
-     * Inserts a Citation node for the selected Zotero item at the saved cursor
-     * position. Called by the CitationSearch component on item selection.
+     * Inserts one or more Citation nodes for the selected Zotero items at the
+     * current cursor position. Multiple items are inserted as separate inline
+     * nodes within a single transaction.
      *
-     * @param key - Zotero item key.
-     * @param text - formatted inline citation label (e.g. "Smith et al., 2020").
-     * @param title - article or book title (used as tooltip).
+     * @param items - array of citations to insert.
      */
-    public insertCitationNode(key: string, text: string, title: string) {
+    public insertCitationNodes(items: SelectedCitation[]) {
         const { view } = this.editor;
-        const { state } = view;
-        const citationType = state.schema.nodes.citation;
+        const freshState = view.state;
+        const schema = freshState.schema;
+        const citationType = schema.nodes.citation;
 
-        if (!citationType) {
+        if (!citationType || items.length === 0) {
             return;
         }
 
-        const node = citationType.create({ key, text, title });
-        const tr = state.tr.replaceSelectionWith(node);
+        const nodes = items.map(({ key, text, title }) =>
+            citationType.create({ key, text, title })
+        );
+
+        const { from, to } = freshState.selection;
+        const frag = Fragment.from(nodes);
+        const tr = freshState.tr.replaceWith(from, to, frag);
         view.dispatch(tr);
         view.focus();
     }
@@ -107,7 +124,7 @@ export default class ZoteroExtension extends Extension {
         try {
             const data = await client.post<{ data: { bibliography: string } }>(
                 "/zotero.bibliography",
-                { keys }
+                { keys, style: this.state.style, locale: this.state.locale }
             );
             html = data.data.bibliography;
         } catch (err) {
@@ -206,18 +223,37 @@ export default class ZoteroExtension extends Extension {
     }
 
     /** Rendered inside the editor to host the citation search overlay. */
-    widget = (_props: WidgetProps) => (
-        <CitationSearch
-            isOpen={this.state.open}
-            onClose={action(() => {
-                this.state.open = false;
-            })}
-            onSelect={(key, text, title) => {
-                action(() => {
+    widget = (_props: WidgetProps) => {
+        const { integrations } = useStores();
+        const user = useCurrentUser();
+
+        React.useEffect(() => {
+            const integration = integrations.orderedData.find(
+                (i) =>
+                    i.type === IntegrationType.LinkedAccount &&
+                    i.service === IntegrationService.Zotero &&
+                    i.userId === user.id
+            );
+            const settings = (integration?.settings as any)?.zotero;
+            action(() => {
+                this.state.style = settings?.defaultStyle ?? "apa";
+                this.state.locale = settings?.defaultLocale ?? "en-US";
+            })();
+        }, [integrations.orderedData, user.id]);
+
+        return (
+            <CitationSearch
+                isOpen={this.state.open}
+                onClose={action(() => {
                     this.state.open = false;
-                })();
-                this.insertCitationNode(key, text, title);
-            }}
-        />
-    );
+                })}
+                onSelect={(items: SelectedCitation[], _mode: CitationMode) => {
+                    action(() => {
+                        this.state.open = false;
+                    })();
+                    this.insertCitationNodes(items);
+                }}
+            />
+        );
+    };
 }

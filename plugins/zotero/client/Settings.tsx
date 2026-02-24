@@ -17,6 +17,7 @@ import Text from "~/components/Text";
 import useCurrentUser from "~/hooks/useCurrentUser";
 import useStores from "~/hooks/useStores";
 import styled from "styled-components";
+import { s } from "@shared/styles";
 import { client } from "~/utils/ApiClient";
 import { disconnectIntegrationFactory } from "~/actions/definitions/integrations";
 import Icon from "./Icon";
@@ -25,7 +26,22 @@ type FormData = {
     url: string;
     apiKey: string;
     userId: string;
+    /** CSL style name for bibliography generation, e.g. "apa", "nature", "vancouver". */
+    defaultStyle: string;
+    /** BCP 47 locale for bibliography formatting, e.g. "en-US", "hu-HU". */
+    defaultLocale: string;
 };
+
+/** Commonly used CSL citation styles. */
+const CITATION_STYLES = [
+    { value: "apa", label: "APA 7th" },
+    { value: "nature", label: "Nature" },
+    { value: "vancouver", label: "Vancouver" },
+    { value: "harvard-cite-them-right", label: "Harvard" },
+    { value: "chicago-author-date", label: "Chicago (author-date)" },
+    { value: "ieee", label: "IEEE" },
+    { value: "american-medical-association", label: "AMA" },
+];
 
 /**
  * Settings page for the Zotero integration.
@@ -58,6 +74,8 @@ function ZoteroSettings() {
             url: savedSettings?.url ?? "https://api.zotero.org",
             apiKey: savedSettings?.apiKey ?? "",
             userId: savedSettings?.userId ?? "",
+            defaultStyle: (savedSettings as any)?.defaultStyle ?? "apa",
+            defaultLocale: (savedSettings as any)?.defaultLocale ?? "en-US",
         },
     });
 
@@ -66,6 +84,8 @@ function ZoteroSettings() {
             url: savedSettings?.url ?? "https://api.zotero.org",
             apiKey: savedSettings?.apiKey ?? "",
             userId: savedSettings?.userId ?? "",
+            defaultStyle: (savedSettings as any)?.defaultStyle ?? "apa",
+            defaultLocale: (savedSettings as any)?.defaultLocale ?? "en-US",
         });
     }, [reset, savedSettings]);
 
@@ -113,6 +133,8 @@ function ZoteroSettings() {
                             url: data.url.replace(/\/?$/, ""),
                             apiKey: data.apiKey.trim(),
                             userId: data.userId.trim(),
+                            defaultStyle: data.defaultStyle.trim() || "apa",
+                            defaultLocale: data.defaultLocale.trim() || "en-US",
                         },
                     } as Integration<IntegrationType.LinkedAccount>["settings"],
                 });
@@ -183,6 +205,37 @@ function ZoteroSettings() {
                     />
                 </SettingRow>
 
+                <SettingRow
+                    label={t("Default citation style")}
+                    name="defaultStyle"
+                    description={t(
+                        "The CSL style used when generating bibliographies. Applies to all documents unless overridden."
+                    )}
+                    border={false}
+                >
+                    <StyleSelect {...register("defaultStyle")}>
+                        {CITATION_STYLES.map((s) => (
+                            <option key={s.value} value={s.value}>
+                                {s.label}
+                            </option>
+                        ))}
+                    </StyleSelect>
+                </SettingRow>
+
+                <SettingRow
+                    label={t("Default locale")}
+                    name="defaultLocale"
+                    description={t(
+                        "BCP 47 locale for bibliography formatting, e.g. en-US or hu-HU."
+                    )}
+                    border={false}
+                >
+                    <Input
+                        placeholder="en-US"
+                        {...register("defaultLocale")}
+                    />
+                </SettingRow>
+
                 <StyledActions reverse justify="end" gap={8}>
                     <Button
                         type="submit"
@@ -219,6 +272,21 @@ function ZoteroSettings() {
 
 const StyledActions = styled(Flex)`
   margin-top: 8px;
+`;
+
+const StyleSelect = styled.select`
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid ${s("inputBorder")};
+  border-radius: 4px;
+  background: ${s("background")};
+  color: ${s("text")};
+  font-size: 15px;
+  outline: none;
+
+  &:focus {
+    border-color: ${s("accent")};
+  }
 `;
 
 export default observer(ZoteroSettings);

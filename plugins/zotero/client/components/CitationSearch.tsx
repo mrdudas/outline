@@ -1,11 +1,12 @@
 import { observer } from "mobx-react";
-import { SearchIcon } from "outline-icons";
+import { CheckmarkIcon, SearchIcon } from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import { s } from "@shared/styles";
 import Modal from "~/components/Modal";
 import Scrollable from "~/components/Scrollable";
+import Button from "~/components/Button";
 import { client } from "~/utils/ApiClient";
 
 /** A Zotero item as returned by the server proxy `GET /api/zotero.search`. */
@@ -30,24 +31,98 @@ export interface ZoteroItem {
     citation?: string;
 }
 
+/** How the citation is rendered in the text body. */
+export type CitationMode = "parenthetical" | "narrative";
+
+/** Data for a single selected citation ready to be inserted. */
+export interface SelectedCitation {
+    key: string;
+    /** Formatted inline citation label (mode-aware). */
+    text: string;
+    /** Full article or book title used as a tooltip. */
+    title: string;
+}
+
 type Props = {
     /** Whether the search dialog is currently open. */
     isOpen: boolean;
     /** Called when the dialog should be closed without inserting anything. */
     onClose: () => void;
     /**
-     * Called when the user selects an item to insert.
+     * Called when the user confirms their selection.
      *
-     * @param key - Zotero item key.
-     * @param text - formatted inline citation label, e.g. "Smith et al., 2020".
-     * @param title - full article/book title used as a tooltip.
+     * @param items - one or more selected citations with pre-formatted labels.
+     * @param mode - the citation mode chosen by the user.
      */
-    onSelect: (key: string, text: string, title: string) => void;
+    onSelect: (items: SelectedCitation[], mode: CitationMode) => void;
 };
+
+/** Returns the author portion of an APA-style in-text citation. */
+function buildAuthorPart(item: ZoteroItem): string {
+    const creators = item.data.creators ?? [];
+    const authors = creators.filter(
+        (c) => c.creatorType === "author" || creators.length === 1
+    );
+
+    if (authors.length === 0) {
+        return "Unknown Author";
+    }
+    if (authors.length === 1) {
+        return authors[0].lastName ?? authors[0].name ?? "";
+    }
+    if (authors.length === 2) {
+        const a = authors[0].lastName ?? authors[0].name ?? "";
+        const b = authors[1].lastName ?? authors[1].name ?? "";
+        return `${a} & ${b}`;
+    }
+    return `${authors[0].lastName ?? authors[0].name ?? ""} et al.`;
+}
+
+/** Returns the year portion of an in-text citation. */
+function buildYearPart(item: ZoteroItem): string {
+    if (!item.data.date) {
+        return "";
+    }
+    return (
+        String(new Date(item.data.date).getFullYear() || "") ||
+        item.data.date.slice(0, 4) ||
+        ""
+    );
+}
+
+/**
+ * Formats the inline citation label for a Zotero item according to the
+ * chosen mode.
+ *
+ * - **parenthetical** – `(Smith et al., 2020)` – placed inside parentheses,
+ *   e.g. `…more research is needed (Smith et al., 2020).`
+ * - **narrative** – `Smith et al. (2020)` – author name is part of the
+ *   sentence, e.g. `…as Smith et al. (2020) demonstrated.`
+ *
+ * @param item - Zotero item.
+ * @param mode - citation mode.
+ * @returns formatted label string.
+ */
+export function formatCitationLabel(
+    item: ZoteroItem,
+    mode: CitationMode
+): string {
+    const author = buildAuthorPart(item);
+    const year = buildYearPart(item);
+
+    if (mode === "narrative") {
+        return year ? `${author} (${year})` : author;
+    }
+
+    // parenthetical
+    return year ? `(${author}, ${year})` : `(${author})`;
+}
 
 /**
  * A search dialog that queries the Zotero library via the Outline server proxy
- * and lets the user pick an item to insert as an inline citation.
+ * and lets the user pick one or more items to insert as inline citations.
+ *
+ * Supports two insertion modes (narrative / parenthetical) and multi-select.
  */
 function CitationSearch({ isOpen, onClose, onSelect }: Props) {
     const { t } = useTranslation();
@@ -55,17 +130,22 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
     const [items, setItems] = React.useState<ZoteroItem[]>([]);
     const [loading, setLoading] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
-    const [selectedIndex, setSelectedIndex] = React.useState(0);
+    const [highlightIndex, setHighlightIndex] = React.useState(0);
+    const [checkedKeys, setCheckedKeys] = React.useState<Set<string>>(
+        new Set()
+    );
+    const [mode, setMode] = React.useState<CitationMode>("parenthetical");
     const debounceRef = React.useRef<ReturnType<typeof setTimeout>>();
     const inputRef = React.useRef<HTMLInputElement>(null);
 
-    // Focus input when dialog opens
+    // Reset state every time the dialog opens
     React.useEffect(() => {
         if (isOpen) {
             setQuery("");
             setItems([]);
             setError(null);
-            setSelectedIndex(0);
+            setHighlightIndex(0);
+            setCheckedKeys(new Set());
             setTimeout(() => inputRef.current?.focus(), 50);
         }
     }, [isOpen]);
@@ -75,16 +155,13 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);
         }
-
         if (!query.trim()) {
             setItems([]);
             return;
         }
-
         debounceRef.current = setTimeout(() => {
             void performSearch(query);
         }, 300);
-
         return () => {
             if (debounceRef.current) {
                 clearTimeout(debounceRef.current);
@@ -106,7 +183,8 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
                 { q, limit: 20 }
             );
             setItems(data.data ?? []);
-            setSelectedIndex(0);
+            setHighlightIndex(0);
+            setCheckedKeys(new Set());
         } catch (err) {
             setError(
                 err instanceof Error
@@ -119,64 +197,51 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
         }
     };
 
+    /** Toggles the checked state of an item. */
+    const toggleCheck = React.useCallback((key: string) => {
+        setCheckedKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    }, []);
+
     /**
-     * Formats the inline citation label from item data.
-     * Uses pre-computed citation if available, otherwise builds it from creators
-     * and date.
-     *
-     * @param item - Zotero item.
-     * @returns formatted label, e.g. "Smith et al., 2020".
+     * Confirms the selection and calls the parent callback.
+     * Uses the currently checked items; if none are checked, uses the
+     * highlighted item instead.
      */
-    const formatCitationLabel = (item: ZoteroItem): string => {
-        if (item.citation) {
-            return item.citation;
-        }
+    const handleConfirm = React.useCallback(() => {
+        let targets: ZoteroItem[];
 
-        const creators = item.data.creators ?? [];
-        const authors = creators.filter(
-            (c) => c.creatorType === "author" || creators.length === 1
-        );
-
-        let authorPart: string;
-
-        if (authors.length === 0) {
-            authorPart = t("Unknown Author");
-        } else if (authors.length === 1) {
-            authorPart = authors[0].lastName ?? authors[0].name ?? "";
-        } else if (authors.length === 2) {
-            const a = authors[0].lastName ?? authors[0].name ?? "";
-            const b = authors[1].lastName ?? authors[1].name ?? "";
-            authorPart = `${a} & ${b}`;
+        if (checkedKeys.size > 0) {
+            targets = items.filter((item) => checkedKeys.has(item.key));
+        } else if (items[highlightIndex]) {
+            targets = [items[highlightIndex]];
         } else {
-            authorPart = `${authors[0].lastName ?? authors[0].name ?? ""} et al.`;
+            return;
         }
 
-        const year = item.data.date
-            ? new Date(item.data.date).getFullYear() ||
-            item.data.date.slice(0, 4)
-            : "";
+        const selected: SelectedCitation[] = targets.map((item) => ({
+            key: item.key,
+            text: formatCitationLabel(item, mode),
+            title: item.data.title ?? "",
+        }));
 
-        return year ? `${authorPart}, ${year}` : authorPart;
-    };
-
-    /**
-     * Confirms the user's selection and forwards the key, formatted label and
-     * title to the parent `onSelect` callback.
-     *
-     * @param item - the Zotero item chosen by the user.
-     */
-    const handleSelect = React.useCallback(
-        (item: ZoteroItem) => {
-            const text = formatCitationLabel(item);
-            const title = item.data.title ?? "";
-            onSelect(item.key, text, title);
-        },
-        [onSelect]
-    );
+        onSelect(selected, mode);
+    }, [checkedKeys, items, highlightIndex, mode, onSelect]);
 
     /**
      * Handles keyboard navigation within the dialog.
-     * Arrow keys move the selection; Enter confirms; Escape closes.
+     *
+     * - Arrow keys move the highlight
+     * - Space toggles the highlighted item's checkbox
+     * - Enter confirms the selection
+     * - Escape closes the dialog
      *
      * @param e - React keyboard event.
      */
@@ -184,17 +249,21 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
         switch (e.key) {
             case "ArrowDown":
                 e.preventDefault();
-                setSelectedIndex((i) => Math.min(i + 1, items.length - 1));
+                setHighlightIndex((i) => Math.min(i + 1, items.length - 1));
                 break;
             case "ArrowUp":
                 e.preventDefault();
-                setSelectedIndex((i) => Math.max(i - 1, 0));
+                setHighlightIndex((i) => Math.max(i - 1, 0));
+                break;
+            case " ":
+                e.preventDefault();
+                if (items[highlightIndex]) {
+                    toggleCheck(items[highlightIndex].key);
+                }
                 break;
             case "Enter":
                 e.preventDefault();
-                if (items[selectedIndex]) {
-                    handleSelect(items[selectedIndex]);
-                }
+                handleConfirm();
                 break;
             case "Escape":
                 onClose();
@@ -204,12 +273,14 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
         }
     };
 
+    const hasItems = items.length > 0;
+
     return (
         <Modal
             isOpen={isOpen}
             onRequestClose={onClose}
             title={t("Search Zotero")}
-            width={540}
+            width={560}
         >
             <Container onKeyDown={handleKeyDown}>
                 <SearchRow>
@@ -226,40 +297,100 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
 
                 {error && <ErrorText>{error}</ErrorText>}
 
-                <Scrollable shadow style={{ maxHeight: 360 }}>
+                <Scrollable shadow style={{ maxHeight: 340 }}>
                     {loading && <StatusText>{t("Searching…")}</StatusText>}
                     {!loading && query && items.length === 0 && !error && (
                         <StatusText>{t("No results found.")}</StatusText>
                     )}
                     {!loading &&
-                        items.map((item, index) => (
-                            <ResultItem
-                                key={item.key}
-                                selected={index === selectedIndex}
-                                onClick={() => handleSelect(item)}
-                                onMouseEnter={() => setSelectedIndex(index)}
-                            >
-                                <ResultTitle>{item.data.title ?? item.key}</ResultTitle>
-                                <ResultMeta>
-                                    {formatCitationLabel(item)}
-                                    {item.data.publicationTitle
-                                        ? ` — ${item.data.publicationTitle}`
-                                        : ""}
-                                </ResultMeta>
-                            </ResultItem>
-                        ))}
+                        items.map((item, index) => {
+                            const checked = checkedKeys.has(item.key);
+                            return (
+                                <ResultItem
+                                    key={item.key}
+                                    highlighted={index === highlightIndex}
+                                    checked={checked}
+                                    onClick={() => toggleCheck(item.key)}
+                                    onMouseEnter={() =>
+                                        setHighlightIndex(index)
+                                    }
+                                >
+                                    <CheckBox
+                                        aria-checked={checked}
+                                        role="checkbox"
+                                    >
+                                        {checked && (
+                                            <CheckmarkIcon
+                                                size={14}
+                                                color="currentColor"
+                                            />
+                                        )}
+                                    </CheckBox>
+                                    <ResultBody>
+                                        <ResultTitle>
+                                            {item.data.title ?? item.key}
+                                        </ResultTitle>
+                                        <ResultMeta>
+                                            {formatCitationLabel(item, mode)}
+                                            {item.data.publicationTitle
+                                                ? ` — ${item.data.publicationTitle}`
+                                                : ""}
+                                        </ResultMeta>
+                                    </ResultBody>
+                                </ResultItem>
+                            );
+                        })}
                 </Scrollable>
 
                 {!query && (
-                    <HintText>{t("Type to search your Zotero library…")}</HintText>
+                    <HintText>
+                        {t("Type to search your Zotero library…")}
+                    </HintText>
                 )}
+
+                <Footer>
+                    <ModeToggle>
+                        <ModeButton
+                            active={mode === "parenthetical"}
+                            onClick={() => setMode("parenthetical")}
+                            type="button"
+                            title={t("Parenthetical: (Smith et al., 2020)")}
+                        >
+                            {t("Parenthetical")}
+                        </ModeButton>
+                        <ModeButton
+                            active={mode === "narrative"}
+                            onClick={() => setMode("narrative")}
+                            type="button"
+                            title={t("Narrative: Smith et al. (2020)")}
+                        >
+                            {t("Narrative")}
+                        </ModeButton>
+                    </ModeToggle>
+
+                    <FooterRight>
+                        {checkedKeys.size > 0 && (
+                            <SelectionCount>
+                                {checkedKeys.size}{" "}
+                                {t("selected")}
+                            </SelectionCount>
+                        )}
+                        <Button
+                            onClick={handleConfirm}
+                            disabled={!hasItems}
+                            type="button"
+                        >
+                            {t("Insert")}
+                        </Button>
+                    </FooterRight>
+                </Footer>
             </Container>
         </Modal>
     );
 }
 
 const Container = styled.div`
-  padding: 0 0 8px;
+  padding: 0;
 `;
 
 const SearchRow = styled.div`
@@ -284,15 +415,47 @@ const SearchInput = styled.input`
   }
 `;
 
-const ResultItem = styled.div<{ selected: boolean }>`
-  padding: 10px 16px;
+const ResultItem = styled.div<{ highlighted: boolean; checked: boolean }>`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 16px;
   cursor: pointer;
   border-radius: 4px;
-  background: ${({ selected }) => (selected ? s("listActiveBackground") : "transparent")};
+  background: ${({ highlighted, checked }) =>
+        checked
+            ? s("listActiveBackground")
+            : highlighted
+            ? s("listHoverBackground")
+            : "transparent"};
 
   &:hover {
-    background: ${s("listActiveBackground")};
+    background: ${s("listHoverBackground")};
   }
+`;
+
+const CheckBox = styled.div`
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border: 1.5px solid ${s("textTertiary")};
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  background: transparent;
+
+  &[aria-checked="true"] {
+    background: ${s("accent")};
+    border-color: ${s("accent")};
+    color: ${s("accentText")};
+  }
+`;
+
+const ResultBody = styled.div`
+  flex: 1;
+  min-width: 0;
 `;
 
 const ResultTitle = styled.div`
@@ -331,6 +494,48 @@ const HintText = styled.div`
   text-align: center;
   color: ${s("textTertiary")};
   font-size: 13px;
+`;
+
+const Footer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 12px;
+  border-top: 1px solid ${s("divider")};
+  gap: 8px;
+`;
+
+const ModeToggle = styled.div`
+  display: flex;
+  gap: 2px;
+  background: ${s("secondaryBackground")};
+  border-radius: 6px;
+  padding: 2px;
+`;
+
+const ModeButton = styled.button<{ active: boolean }>`
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  background: ${({ active }) => (active ? s("background") : "transparent")};
+  color: ${({ active }) => (active ? s("text") : s("textSecondary"))};
+  font-weight: ${({ active }) => (active ? 500 : 400)};
+  box-shadow: ${({ active }) =>
+        active ? "0 1px 2px rgba(0,0,0,0.1)" : "none"};
+  transition: background 0.15s, color 0.15s;
+`;
+
+const FooterRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const SelectionCount = styled.span`
+  font-size: 12px;
+  color: ${s("textTertiary")};
 `;
 
 export default observer(CitationSearch);
