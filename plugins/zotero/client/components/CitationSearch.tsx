@@ -465,8 +465,8 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
                     >
                         {selected.length > 1
                             ? t("Insert {{n}} citations", {
-                                  n: selected.length,
-                              })
+                                n: selected.length,
+                            })
                             : t("Insert")}
                     </Button>
                 </Footer>
