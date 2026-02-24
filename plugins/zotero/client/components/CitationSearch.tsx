@@ -92,6 +92,11 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
         };
     }, [query]);
 
+    /**
+     * Sends a search request to the server proxy and updates the result list.
+     *
+     * @param q - search query to forward to the Zotero API.
+     */
     const performSearch = async (q: string) => {
         setLoading(true);
         setError(null);
@@ -154,6 +159,12 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
         return year ? `${authorPart}, ${year}` : authorPart;
     };
 
+    /**
+     * Confirms the user's selection and forwards the key, formatted label and
+     * title to the parent `onSelect` callback.
+     *
+     * @param item - the Zotero item chosen by the user.
+     */
     const handleSelect = React.useCallback(
         (item: ZoteroItem) => {
             const text = formatCitationLabel(item);
@@ -163,6 +174,12 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
         [onSelect]
     );
 
+    /**
+     * Handles keyboard navigation within the dialog.
+     * Arrow keys move the selection; Enter confirms; Escape closes.
+     *
+     * @param e - React keyboard event.
+     */
     const handleKeyDown = (e: React.KeyboardEvent) => {
         switch (e.key) {
             case "ArrowDown":

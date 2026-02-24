@@ -1,3 +1,9 @@
+/**
+ * Client-side entry point for the Zotero plugin.
+ *
+ * Registers a Settings page entry under the "Account" group so each
+ * user can connect their own Zotero library independently.
+ */
 import { createLazyComponent } from "~/components/LazyLoad";
 import { Hook, PluginManager } from "~/utils/PluginManager";
 import config from "../plugin.json";

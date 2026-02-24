@@ -71,6 +71,10 @@ function ZoteroSettings() {
 
     const [testing, setTesting] = React.useState(false);
 
+    /**
+     * Fires a test search request against the saved Zotero integration
+     * and notifies the user whether the connection is working.
+     */
     const handleTest = React.useCallback(async () => {
         if (!integration) {
             toast.error(t("Save your settings first."));
@@ -89,6 +93,13 @@ function ZoteroSettings() {
         }
     }, [integration, t]);
 
+    /**
+     * Persists the form values as a `LinkedAccount` integration for the
+     * current user. Creates a new integration record or updates the
+     * existing one.
+     *
+     * @param data - validated form values (url, apiKey, userId).
+     */
     const handleSubmit = React.useCallback(
         async (data: FormData) => {
             try {

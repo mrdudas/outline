@@ -53,6 +53,19 @@ async function requireZoteroSettings(userId: string) {
 // GET /api/zotero.search
 // ---------------------------------------------------------------------------
 
+/**
+ * GET /api/zotero.search
+ *
+ * Proxies a search request to the Zotero Web API on behalf of the
+ * authenticated user. Requires a saved Zotero integration (API key,
+ * user ID and base URL).
+ *
+ * Query params: `q` (string), `limit` (number, default 20), `style`
+ * (CSL style name, default "apa").
+ *
+ * Returns `{ data: ZoteroItem[] }` where each item has `key`, `data`
+ * (raw Zotero item fields) and an optional pre-formatted `citation` string.
+ */
 router.get(
     "zotero.search",
     auth(),
@@ -112,6 +125,18 @@ router.get(
 // POST /api/zotero.bibliography
 // ---------------------------------------------------------------------------
 
+/**
+ * POST /api/zotero.bibliography
+ *
+ * Fetches a formatted bibliography for the given item keys from the
+ * Zotero Web API and returns the raw XHTML fragment produced by Zotero.
+ *
+ * Body params: `keys` (string[], max 50), `style` (CSL style name,
+ * default "apa"), `locale` (IETF tag, default "en-US").
+ *
+ * Returns `{ data: { bibliography: string } }` where `bibliography` is
+ * the XHTML string that can be inserted directly into the document.
+ */
 router.post(
     "zotero.bibliography",
     auth(),

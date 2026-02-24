@@ -31,6 +31,15 @@ export default class ZoteroExtension extends Extension {
         open: false,
     });
 
+    /**
+     * Returns the two editor commands exposed by this extension.
+     *
+     * - `insertCitation` – opens the citation search dialog.
+     * - `insertBibliography` – collects all citation keys from the document
+     *   and inserts / refreshes a formatted bibliography block.
+     *
+     * @returns map of command name → factory function.
+     */
     commands(): Record<string, CommandFactory> {
         return {
             insertCitation: (): Command => (_state, dispatch) => {
