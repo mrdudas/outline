@@ -8,8 +8,6 @@ export const ZoteroSearchSchema = BaseSchema.extend({
         q: z.string().min(1),
         /** Maximum number of results (default 20, max 100). */
         limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-        /** Citation style to use for formatted citations. */
-        style: z.string().optional().default("apa"),
     }),
 });
 

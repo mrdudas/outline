@@ -71,7 +71,7 @@ router.get(
     auth(),
     validate(T.ZoteroSearchSchema),
     async (ctx: APIContext<T.ZoteroSearchReq>) => {
-        const { q, limit, style } = ctx.input.query;
+        const { q, limit } = ctx.input.query;
         const { user } = ctx.state.auth;
 
         const settings = await requireZoteroSettings(user.id);
@@ -81,9 +81,7 @@ router.get(
         zoteroUrl.searchParams.set("q", q);
         zoteroUrl.searchParams.set("limit", String(limit));
         zoteroUrl.searchParams.set("qmode", "titleCreatorYear");
-        // Request both raw data and pre-formatted individual citations
-        zoteroUrl.searchParams.set("include", `data,citation`);
-        zoteroUrl.searchParams.set("style", style);
+        zoteroUrl.searchParams.set("include", "data");
         zoteroUrl.searchParams.set("v", "3");
 
         const res = await fetch(zoteroUrl.toString(), {
