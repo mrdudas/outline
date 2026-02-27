@@ -18,6 +18,36 @@ import type { SelectedCitation, CitationMode } from "../components/CitationSearc
 import CitationSearch from "../components/CitationSearch";
 import CitationPopover from "../components/CitationPopover";
 
+/** Maps ISO 639-1 language codes to default CSL locale BCP-47 tags. */
+const ISO_TO_CSL_LOCALE: Record<string, string> = {
+    af: "af-ZA", ar: "ar", bg: "bg-BG", ca: "ca-AD",
+    cs: "cs-CZ", cy: "cy-GB", da: "da-DK", de: "de-DE",
+    el: "el-GR", en: "en-US", es: "es-ES", et: "et-EE",
+    eu: "eu", fa: "fa-IR", fi: "fi-FI", fr: "fr-FR",
+    he: "he-IL", hr: "hr-HR", hu: "hu-HU", id: "id-ID",
+    is: "is-IS", it: "it-IT", ja: "ja-JP", ko: "ko-KR",
+    lt: "lt-LT", lv: "lv-LV", mn: "mn-MN", nb: "nb-NO",
+    nl: "nl-NL", nn: "nn-NO", pl: "pl-PL", pt: "pt-PT",
+    ro: "ro-RO", ru: "ru-RU", sk: "sk-SK", sl: "sl-SI",
+    sq: "sq-AL", sr: "sr-RS", sv: "sv-SE", th: "th-TH",
+    tr: "tr-TR", uk: "uk-UA", vi: "vi-VN", zh: "zh-CN",
+};
+
+/**
+ * Maps an ISO 639-1 language code to the default CSL/BCP-47 locale tag.
+ * Falls back to constructing "xx-XX" or "en-US" for unknown codes.
+ *
+ * @param lang - ISO 639-1 language code, e.g. "hu".
+ * @returns BCP-47 locale tag, e.g. "hu-HU".
+ */
+function langToCSLLocale(lang: string | undefined | null): string {
+    if (!lang) {
+        return "en-US";
+    }
+    const lower = lang.toLowerCase();
+    return ISO_TO_CSL_LOCALE[lower] ?? `${lower}-${lower.toUpperCase()}`;
+}
+
 type ZoteroSettings = {
     defaultStyle?: string;
     defaultLocale?: string;
@@ -243,9 +273,9 @@ export default class ZoteroExtension extends Extension {
 
         const bibNode = bibType
             ? bibType.create(
-                  { style: this.state.style, locale: this.state.locale },
-                  innerFrag.content
-              )
+                { style: this.state.style, locale: this.state.locale },
+                innerFrag.content
+            )
             : innerFrag.content; // fallback: insert raw nodes when schema is missing
 
         const existingRange = this.findBibliographyRange(freshState);
@@ -413,9 +443,11 @@ type CitationWidgetProps = {
  * mode-toggle/delete popover, and the bibliography refresh button.
  */
 const CitationWidget = observer(function CitationWidget({ extension }: CitationWidgetProps) {
-    const { integrations } = useStores();
+    const { integrations, documents } = useStores();
     const user = useCurrentUser();
 
+    // Sync integration settings and document language into state.style / state.locale.
+    // Priority for locale: explicit integration default → document language → "en-US".
     React.useEffect(() => {
         const integration = integrations.orderedData.find(
             (i) =>
@@ -424,11 +456,46 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
                 (i as any).userId === user.id
         );
         const settings = ((integration?.settings as any)?.zotero) as ZoteroSettings | undefined;
+        const docLang = documents.active?.language;
         action(() => {
             extension.state.style = settings?.defaultStyle ?? "apa";
-            extension.state.locale = settings?.defaultLocale ?? "en-US";
+            extension.state.locale =
+                settings?.defaultLocale ||
+                (docLang ? langToCSLLocale(docLang) : "en-US");
         })();
-    }, [integrations.orderedData, user.id, extension]);
+    }, [integrations.orderedData, documents.active?.language, user.id, extension]);
+
+    // When the cursor enters a bibliography block, sync its stored locale into state
+    // so subsequent refreshes use the locale previously saved in that block.
+    React.useEffect(() => {
+        const bibPos = extension.state.selectedBibliographyPos;
+        if (bibPos === null) {
+            return;
+        }
+        const { view } = extension.editor;
+        if (!view) {
+            return;
+        }
+        const node = view.state.doc.nodeAt(bibPos);
+        if (node?.type.name === "zoteroBibliography" && node.attrs.locale) {
+            action(() => {
+                extension.state.locale = node.attrs.locale as string;
+            })();
+        }
+    }, [extension.state.selectedBibliographyPos, extension]);
+
+    // Local state for the locale field shown inside the refresh bar.
+    const [localeInput, setLocaleInput] = React.useState(extension.state.locale);
+    React.useEffect(() => {
+        setLocaleInput(extension.state.locale);
+    }, [extension.state.locale]);
+
+    const handleRefresh = React.useCallback(() => {
+        action(() => {
+            extension.state.locale = localeInput;
+        })();
+        extension.refreshBibliography();
+    }, [extension, localeInput]);
 
     const sel = extension.state.selectedCitation;
 
@@ -467,10 +534,20 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
             )}
             {extension.state.selectedBibliographyPos !== null && (
                 <BibliographyRefreshBar>
-                    <RefreshButton
-                        onClick={() => extension.refreshBibliography()}
-                    >
-                        ↻ Refresh bibliography
+                    <LocaleInput
+                        value={localeInput}
+                        onChange={(e) => setLocaleInput(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                handleRefresh();
+                            }
+                        }}
+                        title="Bibliography locale (e.g. hu-HU)"
+                        aria-label="Bibliography locale"
+                        spellCheck={false}
+                    />
+                    <RefreshButton onClick={handleRefresh}>
+                        ↻ Refresh
                     </RefreshButton>
                 </BibliographyRefreshBar>
             )}
@@ -488,6 +565,22 @@ const BibliographyRefreshBar = styled.div`
 
     @media print {
         display: none;
+    }
+`;
+
+const LocaleInput = styled.input`
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid ${s("divider")};
+    color: ${s("text")};
+    font-size: 12px;
+    padding: 2px 4px;
+    width: 80px;
+    outline: none;
+    text-align: center;
+
+    &:focus {
+        border-bottom-color: ${s("accent")};
     }
 `;
 
