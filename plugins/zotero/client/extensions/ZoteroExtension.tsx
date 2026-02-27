@@ -498,25 +498,13 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         })();
     }, [integrations.orderedData, documents.active?.language, user.id, extension]);
 
-    // When the cursor enters a bibliography block, initialise localeInput from the
-    // locale stored in that specific node. This intentionally bypasses
-    // extension.state.locale so a manual locale selection in the dropdown is not
-    // overwritten when the user leaves and re-enters the block.
-    const setLocaleInput = React.useRef<((v: string) => void) | null>(null);
-    React.useEffect(() => {
-        const bibPos = extension.state.selectedBibliographyPos;
-        if (bibPos === null || !setLocaleInput.current) {
-            return;
-        }
-        const { view } = extension.editor;
-        if (!view) {
-            return;
-        }
-        const node = view.state.doc.nodeAt(bibPos);
-        if (node?.type.name === "zoteroBibliography" && node.attrs.locale) {
-            setLocaleInput.current(node.attrs.locale as string);
-        }
-    }, [extension.state.selectedBibliographyPos, extension]);
+    // When the cursor enters a bibliography block, do NOT restore the node's
+    // stored locale into the dropdown – extension.state.locale already reflects
+    // the correct locale for the document (derived from language or integration
+    // settings).  The node locale attr is only written on refresh and is kept
+    // for server round-trips; it should not override the live value here.
+
+    // When locale changes, rewrite "et al." / author conjunction in every
 
     // When locale changes, rewrite "et al." / author conjunction in every
     // existing citation node so stored text matches the new language.
@@ -559,13 +547,11 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
     }, [extension.state.locale, extension]);
 
     // Local state for the locale dropdown shown inside the refresh bar.
-    // Initialise from the current state locale; also updated when the document
-    // language changes (via extension.state.locale) or when entering a bibliography
-    // block (via the ref above).
+    // Tracks extension.state.locale which is derived from: integration setting
+    // → document language → "en-US".  The user can override it in the dropdown
+    // before refreshing; the chosen value is written back into extension.state.locale
+    // on Refresh so citation labels update immediately.
     const [localeInput, setLocaleInputState] = React.useState(extension.state.locale);
-    // Expose setLocaleInputState via the ref so the bib-entry effect above can
-    // update it without going through extension.state.
-    setLocaleInput.current = setLocaleInputState;
     React.useEffect(() => {
         setLocaleInputState(extension.state.locale);
     }, [extension.state.locale, setLocaleInputState]);
