@@ -597,10 +597,8 @@ width: 100%;
 }
 
 div.zotero-bibliography {
-  border-left: 3px solid ${props.theme.accent};
-  padding-left: 16px;
+  padding-left: 4px;
   margin: 8px 0;
-  opacity: 0.9;
 
   p {
     margin: 0 0 4px;
