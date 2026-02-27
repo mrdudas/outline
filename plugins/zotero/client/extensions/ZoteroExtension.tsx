@@ -33,6 +33,39 @@ const ISO_TO_CSL_LOCALE: Record<string, string> = {
     tr: "tr-TR", uk: "uk-UA", vi: "vi-VN", zh: "zh-CN",
 };
 
+/** Locales available in the bibliography locale dropdown. */
+const SUPPORTED_LOCALES: { value: string; label: string }[] = [
+    { value: "en-US", label: "English (US)" },
+    { value: "en-GB", label: "English (GB)" },
+    { value: "hu-HU", label: "Magyar" },
+    { value: "de-DE", label: "Deutsch" },
+    { value: "de-AT", label: "Deutsch (AT)" },
+    { value: "fr-FR", label: "Français" },
+    { value: "es-ES", label: "Español" },
+    { value: "it-IT", label: "Italiano" },
+    { value: "pt-PT", label: "Português" },
+    { value: "pt-BR", label: "Português (BR)" },
+    { value: "nl-NL", label: "Nederlands" },
+    { value: "pl-PL", label: "Polski" },
+    { value: "cs-CZ", label: "Čeština" },
+    { value: "sk-SK", label: "Slovenčina" },
+    { value: "hr-HR", label: "Hrvatski" },
+    { value: "sl-SI", label: "Slovenščina" },
+    { value: "ro-RO", label: "Română" },
+    { value: "ru-RU", label: "Русский" },
+    { value: "uk-UA", label: "Українська" },
+    { value: "sv-SE", label: "Svenska" },
+    { value: "fi-FI", label: "Suomi" },
+    { value: "da-DK", label: "Dansk" },
+    { value: "nb-NO", label: "Norsk" },
+    { value: "tr-TR", label: "Türkçe" },
+    { value: "ar",    label: "العربية" },
+    { value: "zh-CN", label: "中文 (简体)" },
+    { value: "zh-TW", label: "中文 (繁體)" },
+    { value: "ja-JP", label: "日本語" },
+    { value: "ko-KR", label: "한국어" },
+];
+
 /**
  * Maps an ISO 639-1 language code to the default CSL/BCP-47 locale tag.
  * Falls back to constructing "xx-XX" or "en-US" for unknown codes.
@@ -465,11 +498,14 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         })();
     }, [integrations.orderedData, documents.active?.language, user.id, extension]);
 
-    // When the cursor enters a bibliography block, sync its stored locale into state
-    // so subsequent refreshes use the locale previously saved in that block.
+    // When the cursor enters a bibliography block, initialise localeInput from the
+    // locale stored in that specific node. This intentionally bypasses
+    // extension.state.locale so a manual locale selection in the dropdown is not
+    // overwritten when the user leaves and re-enters the block.
+    const setLocaleInput = React.useRef<((v: string) => void) | null>(null);
     React.useEffect(() => {
         const bibPos = extension.state.selectedBibliographyPos;
-        if (bibPos === null) {
+        if (bibPos === null || !setLocaleInput.current) {
             return;
         }
         const { view } = extension.editor;
@@ -478,9 +514,7 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         }
         const node = view.state.doc.nodeAt(bibPos);
         if (node?.type.name === "zoteroBibliography" && node.attrs.locale) {
-            action(() => {
-                extension.state.locale = node.attrs.locale as string;
-            })();
+            setLocaleInput.current(node.attrs.locale as string);
         }
     }, [extension.state.selectedBibliographyPos, extension]);
 
@@ -524,11 +558,17 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         }
     }, [extension.state.locale, extension]);
 
-    // Local state for the locale field shown inside the refresh bar.
-    const [localeInput, setLocaleInput] = React.useState(extension.state.locale);
+    // Local state for the locale dropdown shown inside the refresh bar.
+    // Initialise from the current state locale; also updated when the document
+    // language changes (via extension.state.locale) or when entering a bibliography
+    // block (via the ref above).
+    const [localeInput, setLocaleInputState] = React.useState(extension.state.locale);
+    // Expose setLocaleInputState via the ref so the bib-entry effect above can
+    // update it without going through extension.state.
+    setLocaleInput.current = setLocaleInputState;
     React.useEffect(() => {
-        setLocaleInput(extension.state.locale);
-    }, [extension.state.locale]);
+        setLocaleInputState(extension.state.locale);
+    }, [extension.state.locale, setLocaleInputState]);
 
     const handleRefresh = React.useCallback(() => {
         action(() => {
@@ -575,18 +615,20 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
             )}
             {extension.state.selectedBibliographyPos !== null && (
                 <BibliographyRefreshBar>
-                    <LocaleInput
-                        value={localeInput}
-                        onChange={(e) => setLocaleInput(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                                handleRefresh();
-                            }
-                        }}
-                        title="Bibliography locale (e.g. hu-HU)"
+                    <LocaleSelect
+                        value={SUPPORTED_LOCALES.some((l) => l.value === localeInput)
+                            ? localeInput
+                            : ""}
+                        onChange={(e) => setLocaleInputState(e.target.value)}
                         aria-label="Bibliography locale"
-                        spellCheck={false}
-                    />
+                    >
+                        {!SUPPORTED_LOCALES.some((l) => l.value === localeInput) && (
+                            <option value="" disabled>{localeInput}</option>
+                        )}
+                        {SUPPORTED_LOCALES.map((l) => (
+                            <option key={l.value} value={l.value}>{l.label}</option>
+                        ))}
+                    </LocaleSelect>
                     <RefreshButton onClick={handleRefresh}>
                         ↻ Refresh
                     </RefreshButton>
@@ -609,19 +651,18 @@ const BibliographyRefreshBar = styled.div`
     }
 `;
 
-const LocaleInput = styled.input`
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid ${s("divider")};
+const LocaleSelect = styled.select`
+    background: ${s("menuBackground")};
+    border: 1px solid ${s("divider")};
+    border-radius: 4px;
     color: ${s("text")};
     font-size: 12px;
-    padding: 2px 4px;
-    width: 80px;
+    padding: 4px 6px;
+    cursor: pointer;
     outline: none;
-    text-align: center;
 
     &:focus {
-        border-bottom-color: ${s("accent")};
+        border-color: ${s("accent")};
     }
 `;
 
