@@ -20,6 +20,7 @@ import BulletList from "./BulletList";
 import CheckboxItem from "./CheckboxItem";
 import CheckboxList from "./CheckboxList";
 import Citation from "./Citation";
+import ZoteroBibliography from "./ZoteroBibliography";
 import CodeBlock from "./CodeBlock";
 import CodeFence from "./CodeFence";
 import Doc from "./Doc";
@@ -118,6 +119,7 @@ export const richExtensions: Nodes = [
   MathBlock,
   Mention,
   Citation,
+  ZoteroBibliography,
   ToggleBlock,
   // Container type nodes should be last so that key handlers are registered for content inside
   // the container nodes first.

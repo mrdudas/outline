@@ -596,6 +596,17 @@ width: 100%;
   content: "; ";
 }
 
+div.zotero-bibliography {
+  border-left: 3px solid ${props.theme.accent};
+  padding-left: 16px;
+  margin: 8px 0;
+  opacity: 0.9;
+
+  p {
+    margin: 0 0 4px;
+  }
+}
+
 > div {
   background: transparent;
 }

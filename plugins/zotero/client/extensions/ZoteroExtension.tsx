@@ -1,17 +1,22 @@
 import { action, observable } from "mobx";
 import { observer } from "mobx-react";
-import { Fragment, Slice } from "prosemirror-model";
+import { Fragment } from "prosemirror-model";
 import { DOMParser as ProseDOMParser } from "prosemirror-model";
-import type { Command, EditorState } from "prosemirror-state";
+import type { Command, EditorState, Plugin as PMPlugin } from "prosemirror-state";
+import { NodeSelection, Plugin } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
 import Extension from "@shared/editor/lib/Extension";
 import type { CommandFactory, WidgetProps } from "@shared/editor/lib/Extension";
 import { IntegrationType, IntegrationService } from "@shared/types";
 import * as React from "react";
+import styled from "styled-components";
+import { s } from "@shared/styles";
 import { client } from "~/utils/ApiClient";
 import useCurrentUser from "~/hooks/useCurrentUser";
 import useStores from "~/hooks/useStores";
 import type { SelectedCitation, CitationMode } from "../components/CitationSearch";
 import CitationSearch from "../components/CitationSearch";
+import CitationPopover from "../components/CitationPopover";
 
 type ZoteroSettings = {
     defaultStyle?: string;
@@ -25,6 +30,13 @@ type ZoteroState = {
     style: string;
     /** Default locale for bibliography formatting (from integration settings). */
     locale: string;
+    /**
+     * When a citation node is selected (NodeSelection), stores its document
+     * position and current mode so the popover can be rendered.
+     */
+    selectedCitation: { pos: number; mode: CitationMode } | null;
+    /** When the cursor is inside the bibliography block, stores its document position. */
+    selectedBibliographyPos: number | null;
 };
 
 /**
@@ -47,6 +59,8 @@ export default class ZoteroExtension extends Extension {
         open: false,
         style: "apa",
         locale: "en-US",
+        selectedCitation: null,
+        selectedBibliographyPos: null,
     });
 
     /**
@@ -78,6 +92,68 @@ export default class ZoteroExtension extends Extension {
                 return true;
             },
         };
+    }
+
+    /**
+     * ProseMirror plugins registered by this extension.
+     *
+     * Adds a view-plugin that tracks when either:
+     * - a `citation` node is selected (NodeSelection) → shows the inline
+     *   mode-toggle / delete popover, or
+     * - the cursor is inside a `zoteroBibliography` block → shows the
+     *   Refresh button.
+     *
+     * @returns array with a single view-tracking plugin.
+     */
+    get plugins(): PMPlugin[] {
+        const ext = this;
+        return [
+            new Plugin({
+                view() {
+                    return {
+                        update(editorView: EditorView) {
+                            const { selection } = editorView.state;
+                            if (
+                                selection instanceof NodeSelection &&
+                                selection.node.type.name === "citation"
+                            ) {
+                                action(() => {
+                                    ext.state.selectedCitation = {
+                                        pos: selection.from,
+                                        mode: selection.node.attrs
+                                            .mode as CitationMode,
+                                    };
+                                    ext.state.selectedBibliographyPos = null;
+                                })();
+                            } else {
+                                let bibPos: number | null = null;
+                                const { $from } = selection;
+                                for (let d = $from.depth; d >= 0; d--) {
+                                    const ancestor = $from.node(d);
+                                    if (
+                                        ancestor.type.name ===
+                                        "zoteroBibliography"
+                                    ) {
+                                        bibPos = $from.before(d);
+                                        break;
+                                    }
+                                }
+                                action(() => {
+                                    ext.state.selectedCitation = null;
+                                    ext.state.selectedBibliographyPos = bibPos;
+                                })();
+                            }
+                        },
+                        destroy() {
+                            action(() => {
+                                ext.state.selectedCitation = null;
+                                ext.state.selectedBibliographyPos = null;
+                            })();
+                        },
+                    };
+                },
+            }),
+        ];
     }
 
     /**
@@ -115,7 +191,7 @@ export default class ZoteroExtension extends Extension {
      * @param state - the current editor state.
      * @param dispatch - the ProseMirror dispatch function.
      */
-    private async fetchAndInsertBibliography(
+    public async fetchAndInsertBibliography(
         state: EditorState,
         dispatch: (tr: ReturnType<EditorState["tr"]["replaceSelectionWith"]>) => void
     ) {
@@ -143,9 +219,10 @@ export default class ZoteroExtension extends Extension {
     }
 
     /**
-     * Parses the bibliography HTML and inserts / replaces the bibliography block.
+     * Parses the bibliography HTML, wraps it in a `zoteroBibliography` block
+     * node, and inserts or replaces the existing block.
      *
-     * @param html - XHTML bibliography returned by the Zotero API.
+     * @param html - HTML bibliography returned by the Zotero API.
      * @param state - current editor state at call time.
      * @param dispatch - dispatch function.
      */
@@ -161,22 +238,26 @@ export default class ZoteroExtension extends Extension {
         const freshState = this.editor.view.state;
         const schema = freshState.schema;
 
-        const fragment = ProseDOMParser.fromSchema(schema).parse(container);
+        const innerFrag = ProseDOMParser.fromSchema(schema).parse(container);
+        const bibType = schema.nodes.zoteroBibliography;
 
-        // Try to locate an existing bibliography block by the anchor comment
+        const bibNode = bibType
+            ? bibType.create(
+                  { style: this.state.style, locale: this.state.locale },
+                  innerFrag.content
+              )
+            : innerFrag.content; // fallback: insert raw nodes when schema is missing
+
         const existingRange = this.findBibliographyRange(freshState);
         const tr = freshState.tr;
 
         if (existingRange) {
-            tr.replaceRange(
-                existingRange.from,
-                existingRange.to,
-                new Slice(fragment.content, 0, 0)
-            );
+            if (bibType) {
+                tr.replaceWith(existingRange.from, existingRange.to, bibNode as any);
+            }
         } else {
-            // Insert at the current cursor (saved before the async gap)
             const insertFrom = state.selection.to;
-            tr.insert(insertFrom, fragment.content);
+            tr.insert(insertFrom, bibNode as any);
         }
 
         dispatch(tr);
@@ -184,9 +265,7 @@ export default class ZoteroExtension extends Extension {
     }
 
     /**
-     * Finds the position range of an existing bibliography block in the document.
-     * Identifies it by looking for a `data-zotero-bibliography` attribute on a
-     * paragraph or div node.
+     * Finds the position range of the `zoteroBibliography` block node.
      *
      * @param state - editor state to search.
      * @returns `{ from, to }` node position range, or undefined.
@@ -199,13 +278,68 @@ export default class ZoteroExtension extends Extension {
             if (result) {
                 return false;
             }
-            if (node.attrs?.["data-zotero-bibliography"]) {
+            if (node.type.name === "zoteroBibliography") {
                 result = { from: pos, to: pos + node.nodeSize };
                 return false;
             }
             return true;
         });
         return result;
+    }
+
+    /**
+     * Changes the mode of a citation node in the document, updating both the
+     * `mode` attribute and the stored label text.
+     *
+     * @param pos - position of the citation node in the document.
+     * @param newMode - target mode ("parenthetical" or "narrative").
+     */
+    public toggleCitationMode(pos: number, newMode: CitationMode) {
+        const { view } = this.editor;
+        const state = view.state;
+        const node = state.doc.nodeAt(pos);
+        if (!node || node.type.name !== "citation") {
+            return;
+        }
+        const currentMode = node.attrs.mode as CitationMode;
+        const newText = convertTextBetweenModes(
+            node.attrs.text as string,
+            currentMode,
+            newMode
+        );
+        const tr = state.tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            mode: newMode,
+            text: newText,
+        });
+        view.dispatch(tr);
+        view.focus();
+    }
+
+    /**
+     * Removes the citation node at the given document position.
+     *
+     * @param pos - position of the citation node in the document.
+     */
+    public deleteCitation(pos: number) {
+        const { view } = this.editor;
+        const state = view.state;
+        const node = state.doc.nodeAt(pos);
+        if (!node || node.type.name !== "citation") {
+            return;
+        }
+        const tr = state.tr.delete(pos, pos + node.nodeSize);
+        view.dispatch(tr);
+        view.focus();
+    }
+
+    /**
+     * Re-fetches the bibliography from the server and replaces the existing
+     * bibliography block in the document.
+     */
+    public refreshBibliography() {
+        const { view } = this.editor;
+        void this.fetchAndInsertBibliography(view.state, view.dispatch.bind(view));
     }
 
     /**
@@ -233,9 +367,39 @@ export default class ZoteroExtension extends Extension {
     }
 
     /** Rendered inside the editor to host the citation search overlay. */
-    widget = (_props: WidgetProps) => (
-        <CitationWidget extension={this} />
-    );
+    widget = (_props: WidgetProps) => <CitationWidget extension={this} />;
+}
+
+/**
+ * Converts the stored citation label between parenthetical and narrative modes.
+ *
+ * @param text - current label text.
+ * @param fromMode - current mode.
+ * @param toMode - target mode.
+ * @returns reformatted label text.
+ */
+function convertTextBetweenModes(
+    text: string,
+    fromMode: CitationMode,
+    toMode: CitationMode
+): string {
+    if (fromMode === toMode) {
+        return text;
+    }
+    if (fromMode === "parenthetical" && toMode === "narrative") {
+        // "Smith, 2020" → "Smith (2020)"
+        const match = /^(.+),\s*(\d{4})$/.exec(text);
+        if (match) {
+            return `${match[1]} (${match[2]})`;
+        }
+        return text;
+    }
+    // narratve → parenthetical: "Smith (2020)" → "Smith, 2020"
+    const match = /^(.+?)\s+\((\d{4})\)$/.exec(text);
+    if (match) {
+        return `${match[1]}, ${match[2]}`;
+    }
+    return text;
 }
 
 type CitationWidgetProps = {
@@ -245,7 +409,8 @@ type CitationWidgetProps = {
 /**
  * Inner React component that is allowed to call hooks.
  * Reads the Zotero integration settings and syncs them into the extension
- * observable state, then renders the CitationSearch dialog.
+ * observable state, then renders the CitationSearch dialog, the citation
+ * mode-toggle/delete popover, and the bibliography refresh button.
  */
 const CitationWidget = observer(function CitationWidget({ extension }: CitationWidgetProps) {
     const { integrations } = useStores();
@@ -265,18 +430,79 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         })();
     }, [integrations.orderedData, user.id, extension]);
 
+    const sel = extension.state.selectedCitation;
+
     return (
-        <CitationSearch
-            isOpen={extension.state.open}
-            onClose={action(() => {
-                extension.state.open = false;
-            })}
-            onSelect={(items: SelectedCitation[], _mode: CitationMode) => {
-                action(() => {
+        <>
+            <CitationSearch
+                isOpen={extension.state.open}
+                onClose={action(() => {
                     extension.state.open = false;
-                })();
-                extension.insertCitationNodes(items);
-            }}
-        />
+                })}
+                onSelect={(items: SelectedCitation[], _mode: CitationMode) => {
+                    action(() => {
+                        extension.state.open = false;
+                    })();
+                    extension.insertCitationNodes(items);
+                }}
+            />
+            {sel !== null && (
+                <CitationPopover
+                    pos={sel.pos}
+                    mode={sel.mode}
+                    view={extension.editor.view}
+                    onSetMode={(newMode) => {
+                        extension.toggleCitationMode(sel.pos, newMode);
+                        action(() => {
+                            extension.state.selectedCitation = {
+                                pos: sel.pos,
+                                mode: newMode,
+                            };
+                        })();
+                    }}
+                    onDelete={() => {
+                        extension.deleteCitation(sel.pos);
+                    }}
+                />
+            )}
+            {extension.state.selectedBibliographyPos !== null && (
+                <BibliographyRefreshBar>
+                    <RefreshButton
+                        onClick={() => extension.refreshBibliography()}
+                    >
+                        ↻ Refresh bibliography
+                    </RefreshButton>
+                </BibliographyRefreshBar>
+            )}
+        </>
     );
 });
+
+const BibliographyRefreshBar = styled.div`
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    pointer-events: all;
+
+    @media print {
+        display: none;
+    }
+`;
+
+const RefreshButton = styled.button`
+    background: ${s("menuBackground")};
+    box-shadow: ${s("menuShadow")};
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    color: ${s("text")};
+    white-space: nowrap;
+
+    &:hover {
+        background: ${s("listItemHoverBackground")};
+    }
+`;
