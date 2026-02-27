@@ -15,7 +15,7 @@ import { client } from "~/utils/ApiClient";
 import useCurrentUser from "~/hooks/useCurrentUser";
 import useStores from "~/hooks/useStores";
 import type { SelectedCitation, CitationMode } from "../components/CitationSearch";
-import CitationSearch from "../components/CitationSearch";
+import CitationSearch, { rewriteCitationText } from "../components/CitationSearch";
 import CitationPopover from "../components/CitationPopover";
 
 /** Maps ISO 639-1 language codes to default CSL locale BCP-47 tags. */
@@ -484,6 +484,46 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         }
     }, [extension.state.selectedBibliographyPos, extension]);
 
+    // When locale changes, rewrite "et al." / author conjunction in every
+    // existing citation node so stored text matches the new language.
+    const prevLocaleRef = React.useRef(extension.state.locale);
+    React.useEffect(() => {
+        const newLocale = extension.state.locale;
+        const prevLocale = prevLocaleRef.current;
+        prevLocaleRef.current = newLocale;
+
+        if (newLocale === prevLocale) {
+            return;
+        }
+
+        const { view } = extension.editor;
+        if (!view) {
+            return;
+        }
+
+        const state = view.state;
+        const tr = state.tr;
+        let changed = false;
+
+        state.doc.descendants((node, pos) => {
+            if (node.type.name === "citation") {
+                const oldText = node.attrs.text as string;
+                const newText = rewriteCitationText(oldText, newLocale);
+                if (newText !== oldText) {
+                    tr.setNodeMarkup(pos, undefined, {
+                        ...node.attrs,
+                        text: newText,
+                    });
+                    changed = true;
+                }
+            }
+        });
+
+        if (changed) {
+            view.dispatch(tr);
+        }
+    }, [extension.state.locale, extension]);
+
     // Local state for the locale field shown inside the refresh bar.
     const [localeInput, setLocaleInput] = React.useState(extension.state.locale);
     React.useEffect(() => {
@@ -503,6 +543,7 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         <>
             <CitationSearch
                 isOpen={extension.state.open}
+                locale={extension.state.locale}
                 onClose={action(() => {
                     extension.state.open = false;
                 })}

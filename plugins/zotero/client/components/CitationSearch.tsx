@@ -57,6 +57,8 @@ type Props = {
      * @param mode - the citation mode chosen by the user.
      */
     onSelect: (items: SelectedCitation[], mode: CitationMode) => void;
+    /** BCP-47 locale used to localise citation terms such as "et al.". */
+    locale?: string;
 };
 
 /** Returns the first author's last name for sorting and label building. */
@@ -71,8 +73,57 @@ function firstAuthorLastName(item: ZoteroItem): string {
     return authors[0].lastName ?? authors[0].name ?? "Unknown";
 }
 
+/**
+ * Locale-specific terms used in citation labels.
+ * Keys are BCP-47 locale tags or IETF language prefix matches.
+ */
+export interface LocaleTerms {
+    /** Abbreviation for "and others" (Latin "et alii"). */
+    etAl: string;
+    /** Conjunction between two author names. */
+    and: string;
+}
+
+/**
+ * Known locale overrides. Most locales keep Latin "et al." / "&";
+ * exceptions are listed here.
+ */
+const LOCALE_TERMS: Record<string, LocaleTerms> = {
+    "hu": { etAl: "és mtsai.", and: "és" },
+    "pl": { etAl: "i in.",     and: "i"  },
+    "nl": { etAl: "et al.",    and: "en" },
+    "de": { etAl: "et al.",    and: "&"  },
+    "fr": { etAl: "et al.",    and: "&"  },
+    "es": { etAl: "et al.",    and: "y"  },
+    "pt": { etAl: "et al.",    and: "e"  },
+    "it": { etAl: "et al.",    and: "e"  },
+    "sv": { etAl: "et al.",    and: "&"  },
+    "fi": { etAl: "ym.",       and: "ja" },
+    "ro": { etAl: "et al.",    and: "și" },
+    "cs": { etAl: "et al.",    and: "a"  },
+    "sk": { etAl: "et al.",    and: "a"  },
+    "hr": { etAl: "i sur.",    and: "i"  },
+};
+
+const DEFAULT_TERMS: LocaleTerms = { etAl: "et al.", and: "&" };
+
+/**
+ * Returns locale-specific citation terms for a given BCP-47 locale tag.
+ * Matches on the language subtag (first two letters) so "hu-HU" matches "hu".
+ *
+ * @param locale - BCP-47 locale tag (e.g. "hu-HU", "en-US").
+ * @returns locale terms for et al. and the "and" conjunction.
+ */
+export function getLocaleTerms(locale: string | undefined | null): LocaleTerms {
+    if (!locale) {
+        return DEFAULT_TERMS;
+    }
+    const lang = locale.split("-")[0].toLowerCase();
+    return LOCALE_TERMS[lang] ?? DEFAULT_TERMS;
+}
+
 /** Returns the author portion of an APA-style in-text citation. */
-function buildAuthorPart(item: ZoteroItem): string {
+function buildAuthorPart(item: ZoteroItem, terms: LocaleTerms = DEFAULT_TERMS): string {
     const creators = item.data.creators ?? [];
     const authors = creators.filter(
         (c) => c.creatorType === "author" || creators.length === 1
@@ -87,9 +138,9 @@ function buildAuthorPart(item: ZoteroItem): string {
     if (authors.length === 2) {
         const a = authors[0].lastName ?? authors[0].name ?? "";
         const b = authors[1].lastName ?? authors[1].name ?? "";
-        return `${a} & ${b}`;
+        return `${a} ${terms.and} ${b}`;
     }
-    return `${authors[0].lastName ?? authors[0].name ?? ""} et al.`;
+    return `${authors[0].lastName ?? authors[0].name ?? ""} ${terms.etAl}`;
 }
 
 /** Returns the year portion of an in-text citation. */
@@ -106,20 +157,23 @@ function buildYearPart(item: ZoteroItem): string {
 
 /**
  * Formats the inline citation label for a Zotero item according to the
- * chosen mode.
+ * chosen mode and locale.
  *
- * - **parenthetical** – `(Smith et al., 2020)` – placed inside parentheses.
+ * - **parenthetical** – `Smith et al., 2020` – CSS wraps groups in parens.
  * - **narrative** – `Smith et al. (2020)` – author name part of the sentence.
  *
  * @param item - Zotero item.
  * @param mode - citation mode.
+ * @param locale - optional BCP-47 locale for localized terms (e.g. "hu-HU").
  * @returns formatted label string.
  */
 export function formatCitationLabel(
     item: ZoteroItem,
-    mode: CitationMode
+    mode: CitationMode,
+    locale?: string | null
 ): string {
-    const author = buildAuthorPart(item);
+    const terms = getLocaleTerms(locale);
+    const author = buildAuthorPart(item, terms);
     const year = buildYearPart(item);
 
     if (mode === "narrative") {
@@ -131,6 +185,53 @@ export function formatCitationLabel(
 }
 
 /**
+ * All unique "et al." and "and" terms across every known locale, used for
+ * replacing localised terms in existing citation node text when the locale changes.
+ */
+const ALL_ET_AL_TERMS = [
+    ...new Set([DEFAULT_TERMS.etAl, ...Object.values(LOCALE_TERMS).map((t) => t.etAl)]),
+];
+const ALL_AND_TERMS = [
+    ...new Set([DEFAULT_TERMS.and, ...Object.values(LOCALE_TERMS).map((t) => t.and)]),
+];
+
+/**
+ * Rewrites a stored citation label text so that its locale-specific terms
+ * ("et al.", "és mtsai.", "i in.", the author conjunction) match the given
+ * target locale. Used when the document language changes and existing citation
+ * nodes need to be updated.
+ *
+ * The replacement is order-safe because we replace whole tokens surrounded by
+ * word-boundaries / known punctuation rather than arbitrary substrings.
+ *
+ * @param text - current citation node text attr, e.g. `"Palatinus et al., 2022"`.
+ * @param newLocale - target BCP-47 locale, e.g. `"hu-HU"`.
+ * @returns rewritten text, e.g. `"Palatinus és mtsai., 2022"`.
+ */
+export function rewriteCitationText(text: string, newLocale: string | undefined | null): string {
+    const newTerms = getLocaleTerms(newLocale);
+    let result = text;
+
+    // Replace et al. variants (the string may end with punctuation directly after)
+    for (const old of ALL_ET_AL_TERMS) {
+        if (old !== newTerms.etAl) {
+            result = result.split(old).join(newTerms.etAl);
+        }
+    }
+
+    // Replace "and" conjunction only when it appears as ` X ` surrounded by spaces
+    // (author separator), to avoid touching years or title words.
+    for (const old of ALL_AND_TERMS) {
+        if (old !== newTerms.and) {
+            // Only replace the pattern " old " to avoid false positives
+            result = result.split(` ${old} `).join(` ${newTerms.and} `);
+        }
+    }
+
+    return result;
+}
+
+/**
  * A tag/chip-based search dialog that queries the Zotero library via the
  * Outline server proxy. Selected items appear as removable chips inside the
  * search input area; searching remains active after each selection so
@@ -139,7 +240,7 @@ export function formatCitationLabel(
  * On insert the selected items are sorted alphabetically by first-author
  * last name (APA7 convention for multiple works in one parenthesis).
  */
-function CitationSearch({ isOpen, onClose, onSelect }: Props) {
+function CitationSearch({ isOpen, onClose, onSelect, locale }: Props) {
     const { t } = useTranslation();
     const [query, setQuery] = React.useState("");
     const [results, setResults] = React.useState<ZoteroItem[]>([]);
@@ -260,7 +361,7 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
 
         const citations: SelectedCitation[] = sorted.map((item) => ({
             key: item.key,
-            text: formatCitationLabel(item, mode),
+            text: formatCitationLabel(item, mode, locale),
             title: item.data.title ?? "",
             mode,
         }));
@@ -417,7 +518,8 @@ function CitationSearch({ isOpen, onClose, onSelect }: Props) {
                                                 <ResultMeta>
                                                     {formatCitationLabel(
                                                         item,
-                                                        mode
+                                                        mode,
+                                                        locale
                                                     )}
                                                     {item.data.publicationTitle
                                                         ? ` — ${item.data.publicationTitle}`
