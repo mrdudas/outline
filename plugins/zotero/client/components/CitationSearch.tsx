@@ -90,19 +90,19 @@ export interface LocaleTerms {
  */
 const LOCALE_TERMS: Record<string, LocaleTerms> = {
     "hu": { etAl: "és mtsai.", and: "és" },
-    "pl": { etAl: "i in.",     and: "i"  },
-    "nl": { etAl: "et al.",    and: "en" },
-    "de": { etAl: "et al.",    and: "&"  },
-    "fr": { etAl: "et al.",    and: "&"  },
-    "es": { etAl: "et al.",    and: "y"  },
-    "pt": { etAl: "et al.",    and: "e"  },
-    "it": { etAl: "et al.",    and: "e"  },
-    "sv": { etAl: "et al.",    and: "&"  },
-    "fi": { etAl: "ym.",       and: "ja" },
-    "ro": { etAl: "et al.",    and: "și" },
-    "cs": { etAl: "et al.",    and: "a"  },
-    "sk": { etAl: "et al.",    and: "a"  },
-    "hr": { etAl: "i sur.",    and: "i"  },
+    "pl": { etAl: "i in.", and: "i" },
+    "nl": { etAl: "et al.", and: "en" },
+    "de": { etAl: "et al.", and: "&" },
+    "fr": { etAl: "et al.", and: "&" },
+    "es": { etAl: "et al.", and: "y" },
+    "pt": { etAl: "et al.", and: "e" },
+    "it": { etAl: "et al.", and: "e" },
+    "sv": { etAl: "et al.", and: "&" },
+    "fi": { etAl: "ym.", and: "ja" },
+    "ro": { etAl: "et al.", and: "și" },
+    "cs": { etAl: "et al.", and: "a" },
+    "sk": { etAl: "et al.", and: "a" },
+    "hr": { etAl: "i sur.", and: "i" },
 };
 
 const DEFAULT_TERMS: LocaleTerms = { etAl: "et al.", and: "&" };

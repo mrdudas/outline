@@ -59,7 +59,7 @@ const SUPPORTED_LOCALES: { value: string; label: string }[] = [
     { value: "da-DK", label: "Dansk" },
     { value: "nb-NO", label: "Norsk" },
     { value: "tr-TR", label: "Türkçe" },
-    { value: "ar",    label: "العربية" },
+    { value: "ar", label: "العربية" },
     { value: "zh-CN", label: "中文 (简体)" },
     { value: "zh-TW", label: "中文 (繁體)" },
     { value: "ja-JP", label: "日本語" },

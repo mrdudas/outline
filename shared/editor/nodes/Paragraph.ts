@@ -87,31 +87,31 @@ export default class Paragraph extends Node {
         }: {
           value: TextAlign;
         }): Command =>
-        (state, dispatch) => {
-          const { tr, selection } = state;
-          const { from, to } = selection;
-          let changed = false;
+          (state, dispatch) => {
+            const { tr, selection } = state;
+            const { from, to } = selection;
+            let changed = false;
 
-          state.doc.nodesBetween(from, to, (node, pos) => {
-            if (node.type !== type) {
-              return true;
-            }
-            const newAlign: TextAlign = value || null;
-            if (node.attrs.textAlign !== newAlign) {
-              tr.setNodeMarkup(pos, undefined, {
-                ...node.attrs,
-                textAlign: newAlign,
-              });
-              changed = true;
-            }
-            return false;
-          });
+            state.doc.nodesBetween(from, to, (node, pos) => {
+              if (node.type !== type) {
+                return true;
+              }
+              const newAlign: TextAlign = value || null;
+              if (node.attrs.textAlign !== newAlign) {
+                tr.setNodeMarkup(pos, undefined, {
+                  ...node.attrs,
+                  textAlign: newAlign,
+                });
+                changed = true;
+              }
+              return false;
+            });
 
-          if (changed) {
-            dispatch?.(tr);
-          }
-          return changed;
-        },
+            if (changed) {
+              dispatch?.(tr);
+            }
+            return changed;
+          },
     };
   }
 

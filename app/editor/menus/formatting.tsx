@@ -80,9 +80,9 @@ export default function formattingMenuItems(
 
   const cellSelectionHasBackground = isTableCell
     ? hasNodeAttrMarkCellSelection(
-        state.selection as CellSelection,
-        "background"
-      )
+      state.selection as CellSelection,
+      "background"
+    )
     : false;
 
   const selectedCellsColorSet = getColorSetForSelectedCells(state.selection);
@@ -169,21 +169,21 @@ export default function formattingMenuItems(
             attrs: { color: preset.hex },
           })),
           ...(selectedCellsColorSet.size === 1 &&
-          !TableCell.isPresetColor(selectedCellsColorSet.values().next().value)
+            !TableCell.isPresetColor(selectedCellsColorSet.values().next().value)
             ? [
-                {
-                  name: "toggleCellSelectionBackgroundAndCollapseSelection",
-                  label: selectedCellsColorSet.values().next().value,
-                  icon: (
-                    <CircleIcon
-                      retainColor
-                      color={selectedCellsColorSet.values().next().value}
-                    />
-                  ),
-                  active: () => true,
-                  attrs: { color: selectedCellsColorSet.values().next().value },
-                },
-              ]
+              {
+                name: "toggleCellSelectionBackgroundAndCollapseSelection",
+                label: selectedCellsColorSet.values().next().value,
+                icon: (
+                  <CircleIcon
+                    retainColor
+                    color={selectedCellsColorSet.values().next().value}
+                  />
+                ),
+                active: () => true,
+                attrs: { color: selectedCellsColorSet.values().next().value },
+              },
+            ]
             : []),
           // Add all other document table background colors
           ...nonPresetDocumentColors.map((color: string) => ({
@@ -244,14 +244,14 @@ export default function formattingMenuItems(
         return [
           ...(highlight
             ? [
-                {
-                  name: "highlight",
-                  label: dictionary.none,
-                  icon: <DottedCircleIcon retainColor color="transparent" />,
-                  active: () => false,
-                  attrs: { color: highlight.mark.attrs.color },
-                },
-              ]
+              {
+                name: "highlight",
+                label: dictionary.none,
+                icon: <DottedCircleIcon retainColor color="transparent" />,
+                active: () => false,
+                attrs: { color: highlight.mark.attrs.color },
+              },
+            ]
             : []),
           ...Highlight.presetColors.map((preset) => ({
             name: "highlight",
@@ -261,24 +261,24 @@ export default function formattingMenuItems(
             attrs: { color: preset.hex },
           })),
           ...(highlight &&
-          highlight.mark.attrs.color &&
-          !Highlight.isPresetColor(highlight.mark.attrs.color)
+            highlight.mark.attrs.color &&
+            !Highlight.isPresetColor(highlight.mark.attrs.color)
             ? [
-                {
-                  name: "highlight",
-                  label: highlight.mark.attrs.color,
-                  icon: (
-                    <CircleIcon
-                      retainColor
-                      color={highlight.mark.attrs.color}
-                    />
-                  ),
-                  active: isMarkActive(schema.marks.highlight, {
-                    color: highlight.mark.attrs.color,
-                  }),
-                  attrs: { color: highlight.mark.attrs.color },
-                },
-              ]
+              {
+                name: "highlight",
+                label: highlight.mark.attrs.color,
+                icon: (
+                  <CircleIcon
+                    retainColor
+                    color={highlight.mark.attrs.color}
+                  />
+                ),
+                active: isMarkActive(schema.marks.highlight, {
+                  color: highlight.mark.attrs.color,
+                }),
+                attrs: { color: highlight.mark.attrs.color },
+              },
+            ]
             : []),
           // Add all other document highlight colors
           ...nonPresetDocumentColors.map((color: string) => ({
