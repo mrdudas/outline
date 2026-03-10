@@ -477,14 +477,14 @@ export default function formattingMenuItems(
     },
     {
       name: "separator",
-      visible: !isCode && !isCodeBlock && !isTableCell,
+      visible: !isCodeBlock && !isTableCell,
     },
     {
       name: "setTextAlign",
       tooltip: dictionary.alignLeft,
       icon: <AlignLeftIcon />,
       active: isNodeActive(schema.nodes.paragraph, { textAlign: null }),
-      visible: !isCode && !isCodeBlock && !isTableCell,
+      visible: !isCodeBlock && !isTableCell,
       attrs: { value: null },
     },
     {
@@ -492,7 +492,7 @@ export default function formattingMenuItems(
       tooltip: dictionary.alignCenter,
       icon: <AlignCenterIcon />,
       active: isNodeActive(schema.nodes.paragraph, { textAlign: "center" }),
-      visible: !isCode && !isCodeBlock && !isTableCell,
+      visible: !isCodeBlock && !isTableCell,
       attrs: { value: "center" },
     },
     {
@@ -500,7 +500,7 @@ export default function formattingMenuItems(
       tooltip: dictionary.alignRight,
       icon: <AlignRightIcon />,
       active: isNodeActive(schema.nodes.paragraph, { textAlign: "right" }),
-      visible: !isCode && !isCodeBlock && !isTableCell,
+      visible: !isCodeBlock && !isTableCell,
       attrs: { value: "right" },
     },
     {
@@ -508,7 +508,7 @@ export default function formattingMenuItems(
       tooltip: dictionary.alignJustify,
       icon: <AlignJustifyIcon />,
       active: isNodeActive(schema.nodes.paragraph, { textAlign: "justify" }),
-      visible: !isCode && !isCodeBlock && !isTableCell,
+      visible: !isCodeBlock && !isTableCell,
       attrs: { value: "justify" },
     },
   ];
