@@ -21,7 +21,11 @@ import {
   TableSplitCellsIcon,
   PaletteIcon,
   CollapseIcon,
+  AlignLeftIcon,
+  AlignCenterIcon,
+  AlignRightIcon,
 } from "outline-icons";
+import { AlignJustifyIcon } from "~/components/Icons/AlignJustifyIcon";
 import { v4 as uuidv4 } from "uuid";
 import CellBackgroundColorPicker from "../components/CellBackgroundColorPicker";
 import HighlightColorPicker from "../components/HighlightColorPicker";
@@ -470,6 +474,42 @@ export default function formattingMenuItems(
       tooltip: dictionary.copy,
       shortcut: `${metaDisplay}+C`,
       visible: isCode && !isCodeBlock && (!isMobile || !isEmpty),
+    },
+    {
+      name: "separator",
+      visible: !isCode && !isCodeBlock && !isTableCell,
+    },
+    {
+      name: "setTextAlign",
+      tooltip: dictionary.alignLeft,
+      icon: <AlignLeftIcon />,
+      active: isNodeActive(schema.nodes.paragraph, { textAlign: null }),
+      visible: !isCode && !isCodeBlock && !isTableCell,
+      attrs: { value: null },
+    },
+    {
+      name: "setTextAlign",
+      tooltip: dictionary.alignCenter,
+      icon: <AlignCenterIcon />,
+      active: isNodeActive(schema.nodes.paragraph, { textAlign: "center" }),
+      visible: !isCode && !isCodeBlock && !isTableCell,
+      attrs: { value: "center" },
+    },
+    {
+      name: "setTextAlign",
+      tooltip: dictionary.alignRight,
+      icon: <AlignRightIcon />,
+      active: isNodeActive(schema.nodes.paragraph, { textAlign: "right" }),
+      visible: !isCode && !isCodeBlock && !isTableCell,
+      attrs: { value: "right" },
+    },
+    {
+      name: "setTextAlign",
+      tooltip: dictionary.alignJustify,
+      icon: <AlignJustifyIcon />,
+      active: isNodeActive(schema.nodes.paragraph, { textAlign: "justify" }),
+      visible: !isCode && !isCodeBlock && !isTableCell,
+      attrs: { value: "justify" },
     },
   ];
 }

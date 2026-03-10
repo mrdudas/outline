@@ -22,6 +22,7 @@ export default function useDictionary() {
       alignCenter: t("Align center"),
       alignLeft: t("Align left"),
       alignRight: t("Align right"),
+      alignJustify: t("Justify"),
       alignDefaultWidth: t("Default width"),
       alignFullWidth: t("Full width"),
       bulletList: t("Bulleted list"),
