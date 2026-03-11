@@ -728,6 +728,56 @@ export const downloadDocumentAsPDF = createAction({
   },
 });
 
+export const exportDocumentAsWord = createAction({
+  name: ({ t }) => t("Export as Word"),
+  analyticsName: "Export document as Word",
+  section: ActiveDocumentSection,
+  keywords: "docx word export engine",
+  icon: <DownloadIcon />,
+  visible: ({ activeDocumentId, stores }) =>
+    !!(
+      activeDocumentId &&
+      stores.policies.abilities(activeDocumentId).download &&
+      env.DOCEXPORT_ENGINE_URL
+    ),
+  perform: async ({ activeDocumentId }) => {
+    if (!activeDocumentId) {
+      return;
+    }
+
+    await client.post(
+      "/docexport.convert",
+      { id: activeDocumentId, format: "docx" },
+      { download: true }
+    );
+  },
+});
+
+export const exportDocumentAsPDF = createAction({
+  name: ({ t }) => t("Export as PDF"),
+  analyticsName: "Export document as PDF via engine",
+  section: ActiveDocumentSection,
+  keywords: "pdf export engine",
+  icon: <DownloadIcon />,
+  visible: ({ activeDocumentId, stores }) =>
+    !!(
+      activeDocumentId &&
+      stores.policies.abilities(activeDocumentId).download &&
+      env.DOCEXPORT_ENGINE_URL
+    ),
+  perform: async ({ activeDocumentId }) => {
+    if (!activeDocumentId) {
+      return;
+    }
+
+    await client.post(
+      "/docexport.convert",
+      { id: activeDocumentId, format: "pdf" },
+      { download: true }
+    );
+  },
+});
+
 export const copyDocumentAsMarkdown = createAction({
   name: ({ t }) => t("Copy as Markdown"),
   section: ActiveDocumentSection,
@@ -1512,6 +1562,8 @@ export const rootDocumentActions = [
   downloadDocumentAsMarkdown,
   downloadDocumentAsHTML,
   downloadDocumentAsPDF,
+  exportDocumentAsWord,
+  exportDocumentAsPDF,
   copyDocumentLink,
   copyDocumentShareLink,
   copyDocumentAsMarkdown,

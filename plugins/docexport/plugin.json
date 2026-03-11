@@ -1,0 +1,5 @@
+{
+  "id": "docexport",
+  "name": "Document Export Engine",
+  "description": "Exports documents to Word (docx) or PDF via an external conversion engine."
+}
