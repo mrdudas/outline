@@ -34,3 +34,14 @@ export const DocExportUploadTemplateSchema = BaseSchema.extend({
 export type DocExportUploadTemplateReq = z.infer<
     typeof DocExportUploadTemplateSchema
 >;
+
+export const DocExportTemplateActionSchema = BaseSchema.extend({
+    body: z.object({
+        /** The name of the template to act on (without extension). */
+        templateName: z.string().min(1),
+    }),
+});
+
+export type DocExportTemplateActionReq = z.infer<
+    typeof DocExportTemplateActionSchema
+>;

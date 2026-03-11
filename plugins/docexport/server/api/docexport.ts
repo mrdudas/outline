@@ -245,4 +245,56 @@ router.post(
     }
 );
 
+router.post(
+    "docexport.templates.download",
+    rateLimiter(RateLimiterStrategy.TenPerMinute),
+    auth(),
+    validate(T.DocExportTemplateActionSchema),
+    async (ctx: APIContext<T.DocExportTemplateActionReq>) => {
+        const { templateName } = ctx.input.body;
+        const { user } = ctx.state.auth;
+        const userName = teamUserName(user.teamId);
+        const engineUrl = env.DOCEXPORT_ENGINE_URL!;
+
+        const response = await fetch(
+            `${engineUrl}/templates/${userName}/${encodeURIComponent(templateName)}`,
+            { method: "GET", headers: engineHeaders() }
+        );
+
+        if (!response.ok) {
+            ctx.throw(response.status === 404 ? 404 : 502, "Template not found");
+            return;
+        }
+
+        ctx.set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        ctx.set("Content-Disposition", `attachment; filename="${encodeURIComponent(templateName)}.docx"`);
+        ctx.body = response.body;
+    }
+);
+
+router.post(
+    "docexport.templates.delete",
+    rateLimiter(RateLimiterStrategy.TenPerMinute),
+    auth(),
+    validate(T.DocExportTemplateActionSchema),
+    async (ctx: APIContext<T.DocExportTemplateActionReq>) => {
+        const { templateName } = ctx.input.body;
+        const { user } = ctx.state.auth;
+        const userName = teamUserName(user.teamId);
+        const engineUrl = env.DOCEXPORT_ENGINE_URL!;
+
+        const response = await fetch(
+            `${engineUrl}/templates/${userName}/${encodeURIComponent(templateName)}`,
+            { method: "DELETE", headers: engineHeaders() }
+        );
+
+        if (!response.ok && response.status !== 404) {
+            ctx.throw(502, "Engine error during delete");
+            return;
+        }
+
+        ctx.body = { success: true };
+    }
+);
+
 export default router;
