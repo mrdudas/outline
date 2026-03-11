@@ -48,6 +48,7 @@ import DeleteDocumentsInTrash from "~/scenes/Trash/components/DeleteDocumentsInT
 import ConfirmationDialog from "~/components/ConfirmationDialog";
 import DocumentCopy from "~/components/DocumentExplorer/DocumentCopy";
 import { DocumentDownload } from "~/components/DocumentDownload";
+import { DocumentExportEngine } from "~/components/DocumentExportEngine";
 import MarkdownIcon from "~/components/Icons/MarkdownIcon";
 import { getHeaderExpandedKey } from "~/components/Sidebar/components/Header";
 import DocumentTemplatizeDialog from "~/components/TemplatizeDialog";
@@ -728,53 +729,33 @@ export const downloadDocumentAsPDF = createAction({
   },
 });
 
-export const exportDocumentAsWord = createAction({
-  name: ({ t }) => t("Export as Word"),
-  analyticsName: "Export document as Word",
+export const exportDocumentViaEngine = createAction({
+  name: ({ t }) => t("Export document"),
+  analyticsName: "Export document via engine",
   section: ActiveDocumentSection,
-  keywords: "docx word export engine",
+  keywords: "docx word pdf export engine sablon template",
   icon: <DownloadIcon />,
   visible: ({ activeDocumentId, stores }) =>
-    !!(
-      activeDocumentId &&
+    !!(activeDocumentId &&
       stores.policies.abilities(activeDocumentId).download &&
-      env.DOCEXPORT_ENGINE_URL
-    ),
-  perform: async ({ activeDocumentId }) => {
+      env.DOCEXPORT_ENGINE_URL),
+  perform: ({ activeDocumentId, stores, t }) => {
     if (!activeDocumentId) {
       return;
     }
 
-    await client.post(
-      "/docexport.convert",
-      { id: activeDocumentId, format: "docx" },
-      { download: true }
-    );
-  },
-});
+    const document = stores.documents.get(activeDocumentId);
+    invariant(document, "Document must exist");
 
-export const exportDocumentAsPDF = createAction({
-  name: ({ t }) => t("Export as PDF"),
-  analyticsName: "Export document as PDF via engine",
-  section: ActiveDocumentSection,
-  keywords: "pdf export engine",
-  icon: <DownloadIcon />,
-  visible: ({ activeDocumentId, stores }) =>
-    !!(
-      activeDocumentId &&
-      stores.policies.abilities(activeDocumentId).download &&
-      env.DOCEXPORT_ENGINE_URL
-    ),
-  perform: async ({ activeDocumentId }) => {
-    if (!activeDocumentId) {
-      return;
-    }
-
-    await client.post(
-      "/docexport.convert",
-      { id: activeDocumentId, format: "pdf" },
-      { download: true }
-    );
+    stores.dialogs.openModal({
+      title: t("Export document"),
+      content: (
+        <DocumentExportEngine
+          document={document}
+          onSubmit={stores.dialogs.closeAllModals}
+        />
+      ),
+    });
   },
 });
 
@@ -1562,8 +1543,7 @@ export const rootDocumentActions = [
   downloadDocumentAsMarkdown,
   downloadDocumentAsHTML,
   downloadDocumentAsPDF,
-  exportDocumentAsWord,
-  exportDocumentAsPDF,
+  exportDocumentViaEngine,
   copyDocumentLink,
   copyDocumentShareLink,
   copyDocumentAsMarkdown,

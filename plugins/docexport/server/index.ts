@@ -4,11 +4,11 @@ import router from "./api/docexport";
 import env from "./env";
 
 if (env.DOCEXPORT_ENGINE_URL) {
-  PluginManager.add([
-    {
-      ...config,
-      type: Hook.API,
-      value: router,
-    },
-  ]);
+    PluginManager.add([
+        {
+            ...config,
+            type: Hook.API,
+            value: router,
+        },
+    ]);
 }
