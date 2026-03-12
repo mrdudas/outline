@@ -1,5 +1,7 @@
 import type { Node } from "prosemirror-model";
+import { TextSelection } from "prosemirror-state";
 import { TableView as ProsemirrorTableView } from "prosemirror-tables";
+import type { EditorView } from "prosemirror-view";
 import { EditorStyleHelper } from "../styles/EditorStyleHelper";
 import { TableLayout } from "../types";
 import { isBrowser } from "../../utils/browser";
@@ -7,7 +9,8 @@ import { isBrowser } from "../../utils/browser";
 export class TableView extends ProsemirrorTableView {
   public constructor(
     public node: Node,
-    public cellMinWidth: number
+    public cellMinWidth: number,
+    private editorView?: EditorView
   ) {
     super(node, cellMinWidth);
 
@@ -44,18 +47,40 @@ export class TableView extends ProsemirrorTableView {
 
     // Set up sticky header handling
     this.setupStickyHeader();
+    this.setupCaption(node);
   }
 
   public destroy() {
     this.cleanupStickyHeader();
+    if (this.captionEl) {
+      this.captionEl.removeEventListener("blur", this.handleCaptionBlur);
+      this.captionEl.removeEventListener("keydown", this.handleCaptionKeyDown);
+    }
   }
 
   public override update(node: Node) {
+    // Sync caption text only when the caption is not currently focused
+    if (this.captionEl && this.captionEl !== document.activeElement) {
+      const newCaption = node.attrs.caption ?? "";
+      if (this.captionEl.textContent !== newCaption) {
+        this.captionEl.textContent = newCaption;
+      }
+    }
+
     this.updateClassList(node);
     return super.update(node);
   }
 
   public override ignoreMutation(record: MutationRecord): boolean {
+    // Ignore all mutations on the caption element (user typing / programmatic sync)
+    if (
+      this.captionEl &&
+      (record.target === this.captionEl ||
+        this.captionEl.contains(record.target as Node))
+    ) {
+      return true;
+    }
+
     if (
       record.type === "attributes" &&
       record.target === this.dom &&
@@ -85,7 +110,7 @@ export class TableView extends ProsemirrorTableView {
       this.scrollable &&
       this.scrollable.scrollWidth > this.scrollable.clientWidth &&
       this.scrollable.scrollLeft + this.scrollable.clientWidth <
-        this.scrollable.scrollWidth - 1
+      this.scrollable.scrollWidth - 1
     );
 
     this.dom.classList.toggle(EditorStyleHelper.tableShadowLeft, shadowLeft);
@@ -106,12 +131,139 @@ export class TableView extends ProsemirrorTableView {
     }
   }
 
+  private captionEl: HTMLParagraphElement | null = null;
+
   private scrollable: HTMLDivElement | null = null;
 
   private scrollHandler: (() => void) | null = null;
 
   /** Default height of the app's fixed header */
   private static readonly HEADER_HEIGHT = 60;
+
+  /**
+   * Creates the caption element and attaches it to the table wrapper.
+   */
+  private setupCaption(node: Node) {
+    if (!isBrowser) {
+      return;
+    }
+
+    this.captionEl = document.createElement("p");
+    this.captionEl.className = `${EditorStyleHelper.imageCaption} ${EditorStyleHelper.tableCaption}`;
+    this.captionEl.setAttribute("contenteditable", "true");
+    this.captionEl.setAttribute(
+      "data-caption",
+      "Add a caption\u2026"
+    );
+    this.captionEl.setAttribute("role", "textbox");
+    this.captionEl.setAttribute("aria-label", "Caption");
+    this.captionEl.tabIndex = -1;
+
+    if (node.attrs.caption) {
+      this.captionEl.textContent = node.attrs.caption;
+    }
+
+    this.captionEl.addEventListener("blur", this.handleCaptionBlur);
+    this.captionEl.addEventListener("keydown", this.handleCaptionKeyDown);
+    this.dom.appendChild(this.captionEl);
+  }
+
+  private handleCaptionBlur = () => {
+    if (!this.captionEl || !this.editorView?.editable) {
+      return;
+    }
+
+    const caption = this.captionEl.textContent?.trim() || null;
+    const currentCaption = this.node.attrs.caption || null;
+
+    if (caption === currentCaption) {
+      return;
+    }
+
+    const pos = this.findTablePos();
+    if (pos === undefined) {
+      return;
+    }
+
+    const { tr } = this.editorView.state;
+    this.editorView.dispatch(
+      tr.setNodeMarkup(pos, undefined, {
+        ...this.node.attrs,
+        caption: caption || null,
+      })
+    );
+  };
+
+  private handleCaptionKeyDown = (event: KeyboardEvent) => {
+    if (!this.captionEl || !this.editorView) {
+      return;
+    }
+
+    // Enter → move the cursor to the paragraph after the table
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const pos = this.findTablePos();
+      if (pos === undefined) {
+        return;
+      }
+      const { state } = this.editorView;
+      const tableNode = state.doc.nodeAt(pos);
+      if (!tableNode) {
+        return;
+      }
+      const afterPos = pos + tableNode.nodeSize;
+      const $after = state.doc.resolve(afterPos);
+      this.editorView.dispatch(
+        state.tr.setSelection(TextSelection.near($after)).scrollIntoView()
+      );
+      this.editorView.focus();
+      return;
+    }
+
+    // Backspace in an empty caption → move focus back into the table
+    if (event.key === "Backspace" && !this.captionEl.textContent) {
+      event.preventDefault();
+      event.stopPropagation();
+      const pos = this.findTablePos();
+      if (pos === undefined) {
+        return;
+      }
+      const { state } = this.editorView;
+      this.editorView.dispatch(
+        state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1)))
+      );
+      this.editorView.focus();
+    }
+  };
+
+  /**
+   * Finds the document position of this table node by matching its DOM element.
+   *
+   * @returns the position of the table node, or undefined if not found.
+   */
+  private findTablePos(): number | undefined {
+    if (!this.editorView) {
+      return undefined;
+    }
+    let result: number | undefined;
+    this.editorView.state.doc.descendants((node, pos) => {
+      if (result !== undefined) {
+        return false;
+      }
+      if (node.type.name === "table") {
+        try {
+          if (this.editorView!.nodeDOM(pos) === this.dom) {
+            result = pos;
+            return false;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return true;
+    });
+    return result;
+  }
 
   /**
    * Sets up the scroll listener for sticky header behavior.

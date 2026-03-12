@@ -80,9 +80,9 @@ function DocumentMenu({
       }),
       document.collectionId
         ? subscriptions.fetchOne({
-            collectionId: document.collectionId,
-            event: SubscriptionType.Document,
-          })
+          collectionId: document.collectionId,
+          event: SubscriptionType.Document,
+        })
         : noop,
       pins.fetchOne({
         documentId: document.id,
@@ -117,6 +117,14 @@ function DocumentMenu({
       void document.save({ fullWidth: checked });
     },
     [user, document]
+  );
+
+  const handleNumberedHeadingsToggle = React.useCallback(
+    (checked: boolean) => {
+      document.numberedHeadings = checked;
+      void document.save({ numberedHeadings: checked });
+    },
+    [document]
   );
 
   const handleInsightsToggle = React.useCallback(
@@ -178,6 +186,18 @@ function DocumentMenu({
               />
             </Style>
           )}
+          {showDisplayOptions && (
+            <Style>
+              <ToggleMenuItem
+                width={26}
+                height={14}
+                label={t("Numbered headings")}
+                labelPosition="left"
+                checked={document.numberedHeadings}
+                onChange={handleNumberedHeadingsToggle}
+              />
+            </Style>
+          )}
         </DisplayOptions>
       </>
     );
@@ -187,12 +207,14 @@ function DocumentMenu({
     can.updateInsights,
     document.embedsDisabled,
     document.fullWidth,
+    document.numberedHeadings,
     document.insightsEnabled,
     isMobile,
     showDisplayOptions,
     showToggleEmbeds,
     handleEmbedsToggle,
     handleFullWidthToggle,
+    handleNumberedHeadingsToggle,
     handleInsightsToggle,
   ]);
 

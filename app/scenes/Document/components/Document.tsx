@@ -599,6 +599,7 @@ class DocumentScene extends React.Component<Props> {
                         value={readOnly ? document.data : undefined}
                         defaultValue={document.data}
                         embedsDisabled={embedsDisabled}
+                        numberedHeadings={document.numberedHeadings}
                         onSynced={this.onSynced}
                         onFileUploadStart={this.onFileUploadStart}
                         onFileUploadStop={this.onFileUploadStop}
@@ -720,10 +721,10 @@ const EditorContainer = styled.div<EditorContainerProps>`
 
     // Decides the editor column position & span
     grid-column: ${({
-      docFullWidth,
-      showContents,
-      tocPosition,
-    }: EditorContainerProps) =>
+  docFullWidth,
+  showContents,
+  tocPosition,
+}: EditorContainerProps) =>
       docFullWidth
         ? showContents
           ? tocPosition === TOCPosition.Left

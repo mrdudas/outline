@@ -259,6 +259,9 @@ export const DocumentsUpdateSchema = BaseSchema.extend({
     /** Boolean to denote if the doc should occupy full width */
     fullWidth: z.boolean().optional(),
 
+    /** Boolean to denote if headings should be automatically numbered */
+    numberedHeadings: z.boolean().optional(),
+
     /** Boolean to denote if insights should be visible on the doc */
     insightsEnabled: z.boolean().optional(),
 

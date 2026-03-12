@@ -21,6 +21,7 @@ type Props = Optional<
     | "importId"
     | "apiImportId"
     | "fullWidth"
+    | "numberedHeadings"
     | "sourceMetadata"
     | "editorVersion"
     | "publishedAt"
@@ -51,6 +52,7 @@ export default async function documentCreator(
     content,
     template,
     fullWidth,
+    numberedHeadings,
     importId,
     apiImportId,
     createdAt,
@@ -95,9 +97,9 @@ export default async function documentCreator(
       ? ProsemirrorHelper.toProsemirror(text).toJSON()
       : template
         ? SharedProsemirrorHelper.replaceTemplateVariables(
-            await DocumentHelper.toJSON(template),
-            user
-          )
+          await DocumentHelper.toJSON(template),
+          user
+        )
         : ProsemirrorHelper.toProsemirror("").toJSON();
 
   const document = Document.build({
@@ -117,6 +119,7 @@ export default async function documentCreator(
     apiImportId,
     sourceMetadata,
     fullWidth: fullWidth ?? template?.fullWidth,
+    numberedHeadings: numberedHeadings ?? template?.numberedHeadings,
     icon: icon ?? template?.icon,
     color: color ?? template?.color,
     title: titleWithReplacements,

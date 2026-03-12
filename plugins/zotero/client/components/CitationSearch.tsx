@@ -78,9 +78,14 @@ function firstAuthorLastName(item: ZoteroItem): string {
  * Keys are BCP-47 locale tags or IETF language prefix matches.
  */
 export interface LocaleTerms {
-    /** Abbreviation for "and others" (Latin "et alii"). */
+    /** Abbreviation for "and others" used in parenthetical citations. */
     etAl: string;
-    /** Conjunction between two author names. */
+    /**
+     * Full form of "and others" used in narrative citations.
+     * When absent, falls back to `etAl`.
+     */
+    etAlNarrative?: string;
+    /** Conjunction between two author names in narrative mode. */
     and: string;
 }
 
@@ -89,7 +94,7 @@ export interface LocaleTerms {
  * exceptions are listed here.
  */
 const LOCALE_TERMS: Record<string, LocaleTerms> = {
-    "hu": { etAl: "és mtsai.", and: "és" },
+    "hu": { etAl: "és mtsai.", etAlNarrative: "és munkatársai", and: "és" },
     "pl": { etAl: "i in.", and: "i" },
     "nl": { etAl: "et al.", and: "en" },
     "de": { etAl: "et al.", and: "&" },
@@ -122,8 +127,18 @@ export function getLocaleTerms(locale: string | undefined | null): LocaleTerms {
     return LOCALE_TERMS[lang] ?? DEFAULT_TERMS;
 }
 
-/** Returns the author portion of an APA-style in-text citation. */
-function buildAuthorPart(item: ZoteroItem, terms: LocaleTerms = DEFAULT_TERMS): string {
+/**
+ * Returns the author portion of an APA-style in-text citation.
+ *
+ * @param item - Zotero item.
+ * @param terms - locale-specific terms.
+ * @param mode - citation mode; controls which conjunction and et al. form is used.
+ */
+function buildAuthorPart(
+    item: ZoteroItem,
+    terms: LocaleTerms = DEFAULT_TERMS,
+    mode: CitationMode = "parenthetical"
+): string {
     const creators = item.data.creators ?? [];
     const authors = creators.filter(
         (c) => c.creatorType === "author" || creators.length === 1
@@ -138,9 +153,16 @@ function buildAuthorPart(item: ZoteroItem, terms: LocaleTerms = DEFAULT_TERMS): 
     if (authors.length === 2) {
         const a = authors[0].lastName ?? authors[0].name ?? "";
         const b = authors[1].lastName ?? authors[1].name ?? "";
-        return `${a} ${terms.and} ${b}`;
+        // APA7: parenthetical always uses "&"; narrative uses the locale's word.
+        const conjunction = mode === "narrative" ? terms.and : "&";
+        return `${a} ${conjunction} ${b}`;
     }
-    return `${authors[0].lastName ?? authors[0].name ?? ""} ${terms.etAl}`;
+    // APA7: narrative uses the full form (e.g. "és munkatársai"), parenthetical the abbreviated.
+    const etAl =
+        mode === "narrative" && terms.etAlNarrative
+            ? terms.etAlNarrative
+            : terms.etAl;
+    return `${authors[0].lastName ?? authors[0].name ?? ""} ${etAl}`;
 }
 
 /** Returns the year portion of an in-text citation. */
@@ -173,7 +195,7 @@ export function formatCitationLabel(
     locale?: string | null
 ): string {
     const terms = getLocaleTerms(locale);
-    const author = buildAuthorPart(item, terms);
+    const author = buildAuthorPart(item, terms, mode);
     const year = buildYearPart(item);
 
     if (mode === "narrative") {
@@ -189,7 +211,13 @@ export function formatCitationLabel(
  * replacing localised terms in existing citation node text when the locale changes.
  */
 const ALL_ET_AL_TERMS = [
-    ...new Set([DEFAULT_TERMS.etAl, ...Object.values(LOCALE_TERMS).map((t) => t.etAl)]),
+    ...new Set([
+        DEFAULT_TERMS.etAl,
+        ...Object.values(LOCALE_TERMS).map((t) => t.etAl),
+        ...Object.values(LOCALE_TERMS).flatMap((t) =>
+            t.etAlNarrative ? [t.etAlNarrative] : []
+        ),
+    ]),
 ];
 const ALL_AND_TERMS = [
     ...new Set([DEFAULT_TERMS.and, ...Object.values(LOCALE_TERMS).map((t) => t.and)]),
@@ -206,25 +234,37 @@ const ALL_AND_TERMS = [
  *
  * @param text - current citation node text attr, e.g. `"Palatinus et al., 2022"`.
  * @param newLocale - target BCP-47 locale, e.g. `"hu-HU"`.
+ * @param mode - citation mode; selects narrative vs. parenthetical et al. form.
  * @returns rewritten text, e.g. `"Palatinus és mtsai., 2022"`.
  */
-export function rewriteCitationText(text: string, newLocale: string | undefined | null): string {
+export function rewriteCitationText(
+    text: string,
+    newLocale: string | undefined | null,
+    mode?: CitationMode
+): string {
     const newTerms = getLocaleTerms(newLocale);
     let result = text;
 
+    // Pick the right target et al. form based on mode.
+    const targetEtAl =
+        mode === "narrative" && newTerms.etAlNarrative
+            ? newTerms.etAlNarrative
+            : newTerms.etAl;
+
     // Replace et al. variants (the string may end with punctuation directly after)
     for (const old of ALL_ET_AL_TERMS) {
-        if (old !== newTerms.etAl) {
-            result = result.split(old).join(newTerms.etAl);
+        if (old !== targetEtAl) {
+            result = result.split(old).join(targetEtAl);
         }
     }
 
-    // Replace "and" conjunction only when it appears as ` X ` surrounded by spaces
-    // (author separator), to avoid touching years or title words.
+    // For the "and" conjunction: parenthetical always uses "&"; narrative uses
+    // the locale word.  Only replace when it appears as ` X ` (surrounded by
+    // spaces) to avoid touching years or title words.
+    const targetAnd = mode === "narrative" ? newTerms.and : "&";
     for (const old of ALL_AND_TERMS) {
-        if (old !== newTerms.and) {
-            // Only replace the pattern " old " to avoid false positives
-            result = result.split(` ${old} `).join(` ${newTerms.and} `);
+        if (old !== targetAnd) {
+            result = result.split(` ${old} `).join(` ${targetAnd} `);
         }
     }
 

@@ -23,6 +23,8 @@ type Props = {
   templateId?: string | null;
   /** If the document should be displayed full-width on the screen */
   fullWidth?: boolean;
+  /** If the document headings should be automatically numbered */
+  numberedHeadings?: boolean;
   /** Whether insights should be visible on the document */
   insightsEnabled?: boolean;
   /** The edit mode: "replace", "append", or "prepend" */
@@ -51,6 +53,7 @@ export default async function documentUpdater(
     editorVersion,
     templateId,
     fullWidth,
+    numberedHeadings,
     insightsEnabled,
     editMode,
     publish,
@@ -79,6 +82,9 @@ export default async function documentUpdater(
   }
   if (fullWidth !== undefined) {
     document.fullWidth = fullWidth;
+  }
+  if (numberedHeadings !== undefined) {
+    document.numberedHeadings = numberedHeadings;
   }
   if (insightsEnabled !== undefined) {
     document.insightsEnabled = insightsEnabled;

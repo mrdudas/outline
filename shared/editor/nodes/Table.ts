@@ -69,13 +69,28 @@ export default class Table extends Node {
         layout: {
           default: null,
         },
+        caption: {
+          default: null,
+          validate: "string|null",
+        },
       },
-      toDOM() {
+      toDOM(node) {
         // Note: This is overridden by TableView
         return [
           "div",
           { class: EditorStyleHelper.table },
           ["table", {}, ["tbody", 0]],
+          ...(node.attrs.caption
+            ? [
+              [
+                "p",
+                {
+                  class: `${EditorStyleHelper.imageCaption} ${EditorStyleHelper.tableCaption}`,
+                },
+                node.attrs.caption,
+              ] as [string, Record<string, string>, string],
+            ]
+            : []),
         ];
       },
     };

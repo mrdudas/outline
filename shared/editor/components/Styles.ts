@@ -16,6 +16,8 @@ export type Props = {
   grow?: boolean;
   theme: DefaultTheme;
   userId?: string;
+  /** Whether H1/H2/H3 headings are automatically numbered using CSS counters */
+  numberedHeadings?: boolean;
 };
 
 export const fadeIn = keyframes`
@@ -1026,6 +1028,18 @@ img.ProseMirror-separator {
   }
   .${EditorStyleHelper.imageCaption}:empty {
     visibility: hidden;
+  }
+}
+
+.${EditorStyleHelper.tableCaption} {
+  &:empty::before {
+    color: ${props.theme.placeholder};
+    content: attr(data-caption);
+    pointer-events: none;
+
+    @media print {
+      display: none;
+    }
   }
 }
 
@@ -2617,6 +2631,92 @@ del {
 }
 `;
 
+const numberedHeadingsStyle = (props: Props) =>
+  props.numberedHeadings &&
+  css`
+    .ProseMirror {
+      counter-reset: h1counter 0 h2counter 0 h3counter 0;
+
+      h1:not(.placeholder) {
+        counter-reset: h2counter 0 h3counter 0;
+
+        &::before {
+          display: inline-block;
+          opacity: 1;
+          transition: none;
+          counter-increment: h1counter;
+          content: counter(h1counter) ".\00a0";
+          font-size: inherit;
+          font-family: inherit;
+          font-weight: inherit;
+          color: inherit;
+          line-height: inherit;
+          width: auto;
+          margin-left: 0;
+        }
+
+        &:dir(rtl)::before {
+          margin-right: 0;
+        }
+      }
+
+      h2:not(.placeholder) {
+        counter-reset: h3counter 0;
+
+        &::before {
+          display: inline-block;
+          opacity: 1;
+          transition: none;
+          counter-increment: h2counter;
+          content: counter(h1counter) "." counter(h2counter) ".\00a0";
+          font-size: inherit;
+          font-family: inherit;
+          font-weight: inherit;
+          color: inherit;
+          line-height: inherit;
+          width: auto;
+          margin-left: 0;
+        }
+
+        &:dir(rtl)::before {
+          margin-right: 0;
+        }
+      }
+
+      h3:not(.placeholder) {
+        &::before {
+          display: inline-block;
+          opacity: 1;
+          transition: none;
+          counter-increment: h3counter;
+          content: counter(h1counter) "." counter(h2counter) "."
+            counter(h3counter) ".\00a0";
+          font-size: inherit;
+          font-family: inherit;
+          font-weight: inherit;
+          color: inherit;
+          line-height: inherit;
+          width: auto;
+          margin-left: 0;
+        }
+
+        &:dir(rtl)::before {
+          margin-right: 0;
+        }
+      }
+    }
+
+    @media print {
+      .ProseMirror {
+        h1:not(.placeholder)::before,
+        h2:not(.placeholder)::before,
+        h3:not(.placeholder)::before {
+          display: inline-block;
+        }
+      }
+    }
+  `;
+
 const EditorContainer = styled.div<Props>`
   ${style}
   ${mathStyle}
@@ -2626,6 +2726,7 @@ const EditorContainer = styled.div<Props>`
   ${findAndReplaceStyle}
   ${emailStyle}
   ${textStyle}
+  ${numberedHeadingsStyle}
 `;
 
 export default EditorContainer;

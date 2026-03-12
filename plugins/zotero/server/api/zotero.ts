@@ -145,14 +145,30 @@ type ZoteroItemData = {
 };
 
 /**
+ * Returns the locale-appropriate abbreviation for "no date" in an APA
+ * bibliography entry.
+ *
+ * @param locale - BCP-47 locale tag, e.g. "hu-HU".
+ * @returns abbreviation string.
+ */
+function noDateTerm(locale: string | undefined): string {
+    const lang = (locale ?? "").split("-")[0].toLowerCase();
+    const map: Record<string, string> = {
+        hu: "é.n.",
+    };
+    return map[lang] ?? "n.d.";
+}
+
+/**
  * Formats a single Zotero item as a plain-text APA-like bibliography entry.
  * Used as fallback when the Zotero server does not support citeproc
  * (`format=bib` returns 500 on many self-hosted instances).
  *
  * @param data - raw Zotero item data fields.
+ * @param locale - BCP-47 locale for locale-sensitive terms (e.g. "n.d." vs "é.n.").
  * @returns HTML paragraph string for the reference.
  */
-function formatBibEntry(data: ZoteroItemData): string {
+function formatBibEntry(data: ZoteroItemData, locale?: string): string {
     const escape = (s: string) =>
         s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -177,7 +193,7 @@ function formatBibEntry(data: ZoteroItemData): string {
 
     const year = data.date
         ? new Date(data.date).getFullYear() || data.date.slice(0, 4)
-        : "n.d.";
+        : noDateTerm(locale);
 
     const title = data.title ? escape(data.title) : "Untitled";
 
@@ -197,10 +213,8 @@ function formatBibEntry(data: ZoteroItemData): string {
         }
         parts.push(journalPart + ".");
     } else if (data.publisher) {
-        const pub = data.place
-            ? `${escape(data.place)}: ${escape(data.publisher)}`
-            : escape(data.publisher);
-        parts.push(`${pub}.`);
+        // APA7: publisher location must NOT be included.
+        parts.push(`${escape(data.publisher)}.`);
     }
 
     if (data.DOI) {
@@ -230,7 +244,7 @@ router.post(
     auth(),
     validate(T.ZoteroBibliographySchema),
     async (ctx: APIContext<T.ZoteroBibliographyReq>) => {
-        const { keys } = ctx.input.body;
+        const { keys, locale } = ctx.input.body;
         const { user } = ctx.state.auth;
 
         const settings = await requireZoteroSettings(user.id);
@@ -266,7 +280,7 @@ router.post(
             (a, b) => (keyOrder.get(a.key) ?? 0) - (keyOrder.get(b.key) ?? 0)
         );
 
-        const entries = sorted.map((item) => formatBibEntry(item.data));
+        const entries = sorted.map((item) => formatBibEntry(item.data, locale));
         const html = `<div data-zotero-bibliography="1">\n${entries.join("\n")}\n</div>`;
 
         ctx.body = {

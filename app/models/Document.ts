@@ -157,6 +157,13 @@ export default class Document extends ArchivableModel implements Searchable {
   fullWidth: boolean;
 
   /**
+   * Whether headings in the document are automatically numbered.
+   */
+  @Field
+  @observable
+  numberedHeadings: boolean;
+
+  /**
    * Whether team members can see who has viewed this document.
    */
   @observable

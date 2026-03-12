@@ -249,6 +249,7 @@ router.post(
       icon: original.icon,
       color: original.color,
       fullWidth: original.fullWidth,
+      numberedHeadings: original.numberedHeadings,
     });
 
     // reload to get all of the data needed to present (user, collection etc)

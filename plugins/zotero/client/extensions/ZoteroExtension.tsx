@@ -368,7 +368,8 @@ export default class ZoteroExtension extends Extension {
         const newText = convertTextBetweenModes(
             node.attrs.text as string,
             currentMode,
-            newMode
+            newMode,
+            this.state.locale
         );
         const tr = state.tr.setNodeMarkup(pos, undefined, {
             ...node.attrs,
@@ -435,34 +436,42 @@ export default class ZoteroExtension extends Extension {
 
 /**
  * Converts the stored citation label between parenthetical and narrative modes.
+ * Also rewrites locale-sensitive terms (et al. form and author conjunction)
+ * so the stored text matches the rules for the target mode.
  *
  * @param text - current label text.
  * @param fromMode - current mode.
  * @param toMode - target mode.
+ * @param locale - BCP-47 locale used to pick the correct et al. / conjunction term.
  * @returns reformatted label text.
  */
 function convertTextBetweenModes(
     text: string,
     fromMode: CitationMode,
-    toMode: CitationMode
+    toMode: CitationMode,
+    locale?: string | null
 ): string {
     if (fromMode === toMode) {
         return text;
     }
+    // First rewrite locale-sensitive terms for the target mode so the structural
+    // regex below sees consistent author text (e.g. "és munkatársai" not "és mtsai.").
+    const rewritten = rewriteCitationText(text, locale, toMode);
+
     if (fromMode === "parenthetical" && toMode === "narrative") {
         // "Smith, 2020" → "Smith (2020)"
-        const match = /^(.+),\s*(\d{4})$/.exec(text);
+        const match = /^(.+),\s*(\d{4})$/.exec(rewritten);
         if (match) {
             return `${match[1]} (${match[2]})`;
         }
-        return text;
+        return rewritten;
     }
-    // narratve → parenthetical: "Smith (2020)" → "Smith, 2020"
-    const match = /^(.+?)\s+\((\d{4})\)$/.exec(text);
+    // narrative → parenthetical: "Smith (2020)" → "Smith, 2020"
+    const match = /^(.+?)\s+\((\d{4})\)$/.exec(rewritten);
     if (match) {
         return `${match[1]}, ${match[2]}`;
     }
-    return text;
+    return rewritten;
 }
 
 type CitationWidgetProps = {
@@ -530,7 +539,11 @@ const CitationWidget = observer(function CitationWidget({ extension }: CitationW
         state.doc.descendants((node, pos) => {
             if (node.type.name === "citation") {
                 const oldText = node.attrs.text as string;
-                const newText = rewriteCitationText(oldText, newLocale);
+                const newText = rewriteCitationText(
+                    oldText,
+                    newLocale,
+                    node.attrs.mode as CitationMode
+                );
                 if (newText !== oldText) {
                     tr.setNodeMarkup(pos, undefined, {
                         ...node.attrs,

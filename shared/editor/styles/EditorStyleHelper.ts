@@ -105,6 +105,9 @@ export class EditorStyleHelper {
   /** Sticky header state */
   static readonly tableStickyHeader = "table-sticky-header";
 
+  /** Caption below a table */
+  static readonly tableCaption = "table-caption";
+
   /** Drop indicator for table drag and drop */
   static readonly tableDragDropIndicator = "table-drag-drop-indicator";
 

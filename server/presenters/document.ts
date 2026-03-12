@@ -36,11 +36,11 @@ async function presentDocument(
     document,
     options.isPublic
       ? {
-          signedUrls: Hour.seconds,
-          teamId: document.teamId,
-          removeMarks: ["comment"],
-          internalUrlBase: `/s/${options.shareId}`,
-        }
+        signedUrls: Hour.seconds,
+        teamId: document.teamId,
+        removeMarks: ["comment"],
+        internalUrlBase: `/s/${options.shareId}`,
+      }
       : undefined
   );
 
@@ -73,6 +73,7 @@ async function presentDocument(
     collaboratorIds: [],
     revision: document.revisionCount,
     fullWidth: document.fullWidth,
+    numberedHeadings: document.numberedHeadings,
     collectionId: undefined,
     parentDocumentId: undefined,
     lastViewedAt: undefined,
@@ -103,12 +104,12 @@ async function presentDocument(
     res.popularityScore = document.popularityScore;
     res.sourceMetadata = document.sourceMetadata
       ? {
-          importedAt: source?.createdAt ?? document.createdAt,
-          importType: source?.format,
-          createdByName: document.sourceMetadata.createdByName,
-          fileName: document.sourceMetadata?.fileName,
-          originalDocumentId: document.sourceMetadata?.originalDocumentId,
-        }
+        importedAt: source?.createdAt ?? document.createdAt,
+        importType: source?.format,
+        createdByName: document.sourceMetadata.createdByName,
+        fileName: document.sourceMetadata?.fileName,
+        originalDocumentId: document.sourceMetadata?.originalDocumentId,
+      }
       : undefined;
   }
 
