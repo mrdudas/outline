@@ -2331,6 +2331,51 @@ table {
   position: relative;
 }
 
+.${EditorStyleHelper.tableApa7} {
+  table {
+    border-collapse: collapse;
+    border-radius: 0;
+    border: 0;
+    border-top: 2.25px solid ${props.theme.text};
+    border-bottom: 2.25px solid ${props.theme.text};
+  }
+
+  tr {
+    border-bottom: 0;
+  }
+
+  td,
+  th {
+    border: 0;
+    min-width: 60px;
+    font-weight: normal;
+    text-align: center;
+  }
+
+  th {
+    color: inherit;
+    background: none;
+    background-image: none;
+    border-bottom: 1.125px solid ${props.theme.text};
+  }
+
+  tr:first-child th,
+  tr:first-child td {
+    border-top: 0;
+  }
+
+  tr:first-child th[data-first-column],
+  tr:first-child td[data-first-column],
+  tr:first-child th[data-last-column],
+  tr:first-child td[data-last-column],
+  th[data-first-column][data-last-row],
+  td[data-first-column][data-last-row],
+  th[data-last-column][data-last-row],
+  td[data-last-column][data-last-row] {
+    border-radius: 0;
+  }
+}
+
 .${EditorStyleHelper.tableStickyHeader} {
   tr:first-child th {
     transform: translateY(calc(var(--header-offset, 64px) + var(--sticky-scroll-offset, 0px)));

@@ -35,7 +35,7 @@ import {
   getColumnIndex,
   tableHasRowspan,
 } from "../queries/table";
-import { type NodeAttrMark, TableLayout } from "../types";
+import { type NodeAttrMark, TableLayout, TableStyle } from "../types";
 import { collapseSelection } from "./collapseSelection";
 import { RowSelection } from "../selection/RowSelection";
 import { ColumnSelection } from "../selection/ColumnSelection";
@@ -90,13 +90,55 @@ export function createTable({
   };
 }
 
+/**
+ * A command that creates an APA 7th edition styled table at the current selection.
+ *
+ * @param rowsCount - the number of rows to create including the header row.
+ * @param colsCount - the number of columns to create.
+ * @param colWidth - the width of each column in pixels.
+ * @returns a ProseMirror command.
+ */
+export function createApa7Table({
+  rowsCount,
+  colsCount,
+  colWidth,
+}: {
+  /** The number of rows in the table. */
+  rowsCount: number;
+  /** The number of columns in the table. */
+  colsCount: number;
+  /** The widths of each column in the table. */
+  colWidth: number;
+}): Command {
+  return (state, dispatch) => {
+    if (dispatch) {
+      const offset = state.tr.selection.anchor + 1;
+      const nodes = createTableInner(
+        state,
+        rowsCount,
+        colsCount,
+        colWidth,
+        true,
+        undefined,
+        { style: TableStyle.apa7 }
+      );
+      const tr = state.tr.replaceSelectionWith(nodes).scrollIntoView();
+      const resolvedPos = tr.doc.resolve(offset);
+      tr.setSelection(TextSelection.near(resolvedPos));
+      dispatch(tr);
+    }
+    return true;
+  };
+}
+
 export function createTableInner(
   state: EditorState,
   rowsCount: number,
   colsCount: number,
   colWidth?: number,
   withHeaderRow = true,
-  cellContent?: Node
+  cellContent?: Node,
+  tableAttrs?: Record<string, unknown>
 ) {
   const types = tableNodeTypes(state.schema);
   const headerCells: Node[] = [];
@@ -141,7 +183,7 @@ export function createTableInner(
     );
   }
 
-  return types.table.createChecked(null, rows);
+  return types.table.createChecked(tableAttrs ?? null, rows);
 }
 
 export function exportTable({
@@ -689,7 +731,7 @@ export function setColumnAttr({
  * @param attrs The attributes to set
  * @returns The command
  */
-export function setTableAttr(attrs: { layout: TableLayout | null }): Command {
+export function setTableAttr(attrs: { layout?: TableLayout | null; style?: TableStyle | null }): Command {
   return (state, dispatch) => {
     if (!isInTable(state)) {
       return false;

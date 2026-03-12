@@ -21,6 +21,7 @@ import {
   addRowAndMoveSelection,
   setColumnAttr,
   createTable,
+  createApa7Table,
   exportTable,
   distributeColumns,
   sortTable,
@@ -45,12 +46,14 @@ import { FixTablesPlugin } from "../plugins/FixTablesPlugin";
 import { TableLayoutPlugin } from "../plugins/TableLayoutPlugin";
 import tablesRule from "../rules/tables";
 import { EditorStyleHelper } from "../styles/EditorStyleHelper";
+import { TableStyle } from "../types";
 import type { TableLayout } from "../types";
 import Node from "./Node";
 import { TableView } from "./TableView";
 
 export type TableAttrs = {
   layout: TableLayout | null;
+  style: TableStyle | null;
 };
 
 export default class Table extends Node {
@@ -69,6 +72,10 @@ export default class Table extends Node {
         layout: {
           default: null,
         },
+        style: {
+          default: null,
+          validate: "string|null",
+        },
         caption: {
           default: null,
           validate: "string|null",
@@ -76,9 +83,16 @@ export default class Table extends Node {
       },
       toDOM(node) {
         // Note: This is overridden by TableView
+        const tableClass = [
+          EditorStyleHelper.table,
+          node.attrs.style === TableStyle.apa7 ? EditorStyleHelper.tableApa7 : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         return [
           "div",
-          { class: EditorStyleHelper.table },
+          { class: tableClass },
+
           ["table", {}, ["tbody", 0]],
           ...(node.attrs.caption
             ? [
@@ -103,6 +117,7 @@ export default class Table extends Node {
   commands() {
     return {
       createTable,
+      createApa7Table,
       setColumnAttr,
       setTableAttr,
       sortTable,

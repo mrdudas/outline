@@ -2,12 +2,13 @@ import {
   AlignFullWidthIcon,
   DownloadIcon,
   TableColumnsDistributeIcon,
+  TableIcon,
   TrashIcon,
 } from "outline-icons";
 import type { EditorState } from "prosemirror-state";
 import { isNodeActive } from "@shared/editor/queries/isNodeActive";
 import type { MenuItem } from "@shared/editor/types";
-import { TableLayout } from "@shared/editor/types";
+import { TableLayout, TableStyle } from "@shared/editor/types";
 import type { Dictionary } from "~/hooks/useDictionary";
 
 export default function tableMenuItems(
@@ -24,6 +25,10 @@ export default function tableMenuItems(
     layout: TableLayout.fullWidth,
   })(state);
 
+  const isApa7 = isNodeActive(schema.nodes.table, {
+    style: TableStyle.apa7,
+  })(state);
+
   return [
     {
       name: "setTableAttr",
@@ -33,6 +38,15 @@ export default function tableMenuItems(
       icon: <AlignFullWidthIcon />,
       attrs: isFullWidth ? { layout: null } : { layout: TableLayout.fullWidth },
       active: () => isFullWidth,
+    },
+    {
+      name: "setTableAttr",
+      tooltip: isApa7
+        ? dictionary.tableStyleDefault
+        : dictionary.tableStyleApa7,
+      icon: <TableIcon />,
+      attrs: isApa7 ? { style: null } : { style: TableStyle.apa7 },
+      active: () => isApa7,
     },
     {
       name: "distributeColumns",

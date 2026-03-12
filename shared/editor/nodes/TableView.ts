@@ -3,7 +3,7 @@ import { TextSelection } from "prosemirror-state";
 import { TableView as ProsemirrorTableView } from "prosemirror-tables";
 import type { EditorView } from "prosemirror-view";
 import { EditorStyleHelper } from "../styles/EditorStyleHelper";
-import { TableLayout } from "../types";
+import { TableLayout, TableStyle } from "../types";
 import { isBrowser } from "../../utils/browser";
 
 export class TableView extends ProsemirrorTableView {
@@ -103,6 +103,11 @@ export class TableView extends ProsemirrorTableView {
     this.dom.classList.toggle(
       EditorStyleHelper.tableFullWidth,
       node.attrs.layout === TableLayout.fullWidth
+    );
+
+    this.dom.classList.toggle(
+      EditorStyleHelper.tableApa7,
+      node.attrs.style === TableStyle.apa7
     );
 
     const shadowLeft = !!(this.scrollable && this.scrollable.scrollLeft > 0);

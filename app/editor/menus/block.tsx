@@ -145,6 +145,17 @@ export default function blockMenuItems(
       },
     },
     {
+      name: "createApa7Table",
+      title: dictionary.tableApa7,
+      keywords: "apa apa7 academic table statistics",
+      icon: <TableIcon />,
+      attrs: {
+        rowsCount: 4,
+        colsCount: 4,
+        colWidth: documentWidth / 4,
+      },
+    },
+    {
       name: "blockquote",
       title: dictionary.quote,
       icon: <BlockQuoteIcon />,

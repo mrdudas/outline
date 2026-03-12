@@ -17,6 +17,10 @@ export enum TableLayout {
   fullWidth = "full-width",
 }
 
+export enum TableStyle {
+  apa7 = "apa7",
+}
+
 type Section = ({ t }: { t: TFunction }) => string;
 
 export type MenuItem = {

@@ -108,6 +108,9 @@ export class EditorStyleHelper {
   /** Caption below a table */
   static readonly tableCaption = "table-caption";
 
+  /** APA7-styled table */
+  static readonly tableApa7 = "table-apa7";
+
   /** Drop indicator for table drag and drop */
   static readonly tableDragDropIndicator = "table-drag-drop-indicator";
 
