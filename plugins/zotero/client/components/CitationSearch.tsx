@@ -166,15 +166,20 @@ function buildAuthorPart(
 }
 
 /** Returns the year portion of an in-text citation. */
-function buildYearPart(item: ZoteroItem): string {
-    if (!item.data.date) {
+function extractYear(date: string | undefined): string {
+    if (!date) {
         return "";
     }
-    return (
-        String(new Date(item.data.date).getFullYear() || "") ||
-        item.data.date.slice(0, 4) ||
-        ""
-    );
+
+    // Zotero's `date` is often free text (e.g. "2024-03-02", "3/2024", "Spring 2024").
+    // Prefer the first 4-digit year token found anywhere in the value.
+    const match = /(?:^|\D)(\d{4})(?=\D|$)/.exec(date);
+    return match?.[1] ?? "";
+}
+
+/** Returns the year portion of an in-text citation. */
+function buildYearPart(item: ZoteroItem): string {
+    return extractYear(item.data.date);
 }
 
 /**

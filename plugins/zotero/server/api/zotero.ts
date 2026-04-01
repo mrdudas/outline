@@ -160,6 +160,22 @@ function noDateTerm(locale: string | undefined): string {
 }
 
 /**
+ * Extracts a 4-digit year from Zotero's free-form `date` value.
+ *
+ * @param date - raw Zotero date string.
+ * @returns year or empty string when missing/unparseable.
+ */
+function extractYear(date: string | undefined): string {
+    if (!date) {
+        return "";
+    }
+
+    // Zotero dates are often not strict ISO values, so avoid Date parsing.
+    const match = /(?:^|\D)(\d{4})(?=\D|$)/.exec(date);
+    return match?.[1] ?? "";
+}
+
+/**
  * Formats a single Zotero item as a plain-text APA-like bibliography entry.
  * Used as fallback when the Zotero server does not support citeproc
  * (`format=bib` returns 500 on many self-hosted instances).
@@ -191,9 +207,7 @@ function formatBibEntry(data: ZoteroItemData, locale?: string): string {
             .join(", & ");
     }
 
-    const year = data.date
-        ? new Date(data.date).getFullYear() || data.date.slice(0, 4)
-        : noDateTerm(locale);
+    const year = extractYear(data.date) || noDateTerm(locale);
 
     const title = data.title ? escape(data.title) : "Untitled";
 
