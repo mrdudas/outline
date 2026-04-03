@@ -39,6 +39,7 @@ import type {
   GroupMembership,
   Import,
   OAuthClient,
+  QualitativeTag,
 } from "./models";
 
 export enum AuthenticationType {
@@ -475,6 +476,12 @@ export type ImportEvent = BaseEvent<Import<any>> & {
   modelId: string;
 };
 
+export type QualitativeTagEvent = BaseEvent<QualitativeTag> & {
+  name: "qualitativeTags.create" | "qualitativeTags.update" | "qualitativeTags.delete";
+  modelId: string;
+  collectionId: string;
+};
+
 export type Event =
   | ApiKeyEvent
   | AttachmentEvent
@@ -505,7 +512,8 @@ export type Event =
   | OAuthClientEvent
   | UserPasskeyEvent
   | EmptyTrashEvent
-  | ImportEvent;
+  | ImportEvent
+  | QualitativeTagEvent;
 
 export type NotificationMetadata = {
   notificationId?: string;

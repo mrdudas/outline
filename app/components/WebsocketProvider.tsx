@@ -31,6 +31,7 @@ import type Subscription from "~/models/Subscription";
 import type Team from "~/models/Team";
 import type User from "~/models/User";
 import type UserMembership from "~/models/UserMembership";
+import type QualitativeTag from "~/models/QualitativeTag";
 import withStores from "~/components/withStores";
 import type {
   PartialExcept,
@@ -110,6 +111,7 @@ class WebsocketProvider extends Component<Props> {
       fileOperations,
       notifications,
       imports,
+      qualitativeTags,
     } = this.props;
 
     const currentUserId = auth?.user?.id;
@@ -253,6 +255,27 @@ class WebsocketProvider extends Component<Props> {
           const collection = collections.get(event.collectionId);
           collection?.updateDocument(event);
         }
+      })
+    );
+
+    this.socket.on(
+      "qualitativeTags.create",
+      action((event: PartialExcept<QualitativeTag, "id">) => {
+        qualitativeTags.add(event);
+      })
+    );
+
+    this.socket.on(
+      "qualitativeTags.update",
+      action((event: PartialExcept<QualitativeTag, "id">) => {
+        qualitativeTags.add(event);
+      })
+    );
+
+    this.socket.on(
+      "qualitativeTags.delete",
+      action((event: { modelId: string }) => {
+        qualitativeTags.remove(event.modelId);
       })
     );
 

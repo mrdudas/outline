@@ -19,6 +19,7 @@ import {
   User,
   Import,
   Template,
+  QualitativeTag,
 } from "@server/models";
 import { cannot } from "@server/policies";
 import {
@@ -36,6 +37,7 @@ import {
   presentGroupMembership,
   presentGroupUser,
   presentImport,
+  presentQualitativeTag,
 } from "@server/presenters";
 import presentNotification from "@server/presenters/notification";
 import type { Event } from "../../types";
@@ -516,6 +518,48 @@ export default class WebsocketsProcessor {
         return socketio
           .to(`user-${event.actorId}`)
           .emit(event.name, presentImport(importModel));
+      }
+
+      case "qualitativeTags.create":
+      case "qualitativeTags.update": {
+        const tag = await QualitativeTag.findByPk(event.modelId, {
+          paranoid: false,
+        });
+        if (!tag) {
+          return;
+        }
+
+        const collection = await Collection.findByPk(tag.collectionId, {
+          paranoid: false,
+        });
+        if (!collection) {
+          return;
+        }
+
+        const channels = this.getCollectionEventChannels(event, collection);
+        return socketio.to(channels).emit(event.name, presentQualitativeTag(tag));
+      }
+
+      case "qualitativeTags.delete": {
+        const collectionId =
+          event.collectionId ?? event.changes?.previous?.collectionId;
+
+        if (!collectionId) {
+          return;
+        }
+
+        const collection = await Collection.findByPk(collectionId, {
+          paranoid: false,
+        });
+
+        const channels = collection
+          ? this.getCollectionEventChannels(event, collection)
+          : [`collection-${collectionId}`, `user-${event.actorId}`];
+
+        return socketio.to(channels).emit(event.name, {
+          modelId: event.modelId,
+          collectionId,
+        });
       }
 
       case "pins.create":

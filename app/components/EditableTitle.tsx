@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import styled from "styled-components";
 import { s, ellipsis } from "@shared/styles";
 import EventBoundary from "@shared/components/EventBoundary";
+import useIsMounted from "~/hooks/useIsMounted";
 
 type Props = Omit<React.HTMLAttributes<HTMLInputElement>, "onSubmit"> & {
   /** A callback when the title is submitted. */
@@ -30,6 +31,7 @@ function EditableTitle(
   { title, onSubmit, canUpdate, onEditing, onCancel, ...rest }: Props,
   ref: React.RefObject<RefHandle>
 ) {
+  const isMounted = useIsMounted();
   const [isEditing, setIsEditing] = React.useState(rest.isEditing || false);
   const [originalValue, setOriginalValue] = React.useState(title);
   const [value, setValue] = React.useState(title);
@@ -103,19 +105,28 @@ function EditableTitle(
       setIsSubmitting(true);
       try {
         await onSubmit(trimmedValue);
+        if (!isMounted()) {
+          return;
+        }
+
         setOriginalValue(trimmedValue);
         setIsEditing(false);
       } catch (error) {
+        if (!isMounted()) {
+          return;
+        }
+
         setValue(value);
         setIsEditing(true);
 
         toast.error(error.message);
-        throw error;
       } finally {
-        setIsSubmitting(false);
+        if (isMounted()) {
+          setIsSubmitting(false);
+        }
       }
     },
-    [originalValue, value, onCancel, onSubmit, isSubmitting]
+    [originalValue, value, onCancel, onSubmit, isSubmitting, isMounted]
   );
 
   const handleKeyDown = React.useCallback(

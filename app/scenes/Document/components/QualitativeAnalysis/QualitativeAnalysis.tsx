@@ -42,11 +42,13 @@ type TagDraft = {
  */
 function QualitativeAnalysis() {
     const { t } = useTranslation();
-    const { ui, documents, qualitativeTags } = useStores();
+    const { ui, documents, qualitativeTags, auth } = useStores();
     const user = useCurrentUser({ rejectOnEmpty: false });
     const { editor } = useDocumentContext();
     const match = useRouteMatch<{ documentSlug: string }>();
-    const documentModel = documents.get(match.params.documentSlug);
+    const routeDocument = documents.get(match.params.documentSlug);
+    const documentModel = documents.active ?? routeDocument;
+    const currentUserId = user?.id ?? auth.user?.id;
     const [name, setName] = React.useState("");
     const [showCreateForm, setShowCreateForm] = React.useState(false);
     const [isCreating, setIsCreating] = React.useState(false);
@@ -272,13 +274,13 @@ function QualitativeAnalysis() {
 
     const handleApplyTag = React.useCallback(
         (tagId: string, code: string, color: string) => {
-            if (!editor || !user?.id) {
+            if (!editor || !currentUserId) {
                 return;
             }
 
             const didApply = editor.addQualitativeTag({
                 id: uuidv4(),
-                userId: user.id,
+                userId: currentUserId,
                 tagId,
                 tagCode: code,
                 color,
@@ -288,7 +290,7 @@ function QualitativeAnalysis() {
                 refreshSelection();
             }
         },
-        [editor, refreshSelection, user?.id]
+        [currentUserId, editor, refreshSelection]
     );
 
     const beginEditTag = React.useCallback(
@@ -539,13 +541,18 @@ function QualitativeAnalysis() {
                             <TagCard key={tag.id} style={{ borderColor: tag.color }}>
                                 <TagButton
                                     type="button"
+                                    onMouseDown={(event) => event.preventDefault()}
                                     onClick={() => handleApplyTag(tag.id, tag.code, tag.color)}
                                     style={{ color: tag.color }}
                                 >
                                     <strong>{tag.code}</strong> {tag.name}
                                 </TagButton>
                                 <TagActions>
-                                    <SmallActionButton type="button" onClick={() => beginEditTag(tag.id)}>
+                                    <SmallActionButton
+                                        type="button"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onClick={() => beginEditTag(tag.id)}
+                                    >
                                         {t("Edit")}
                                     </SmallActionButton>
                                 </TagActions>
