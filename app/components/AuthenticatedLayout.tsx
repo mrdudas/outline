@@ -35,6 +35,12 @@ import CommandBar from "./CommandBar";
 const DocumentComments = lazyWithRetry(
   () => import("~/scenes/Document/components/Comments/Comments")
 );
+const DocumentQualitativeAnalysis = lazyWithRetry(
+  () =>
+    import(
+      "~/scenes/Document/components/QualitativeAnalysis/QualitativeAnalysis"
+    )
+);
 const DocumentHistory = lazyWithRetry(
   () => import("~/scenes/Document/components/History")
 );
@@ -102,17 +108,25 @@ const AuthenticatedLayout: React.FC = ({ children }: Props) => {
     ui.activeDocumentId &&
     ui.commentsExpanded &&
     !!team.getPreference(TeamPreference.Commenting);
+  const showQualitativeAnalysis =
+    !showHistory &&
+    !showComments &&
+    can.comment &&
+    ui.activeDocumentId &&
+    ui.qualitativeAnalysisExpanded &&
+    !!team.getPreference(TeamPreference.Commenting);
 
   const sidebarRight = (
     <AnimatePresence
       initial={false}
       key={ui.activeDocumentId ? "active" : "inactive"}
     >
-      {(showHistory || showComments) && (
+      {(showHistory || showComments || showQualitativeAnalysis) && (
         <Route path={`/doc/${slug}`}>
           <React.Suspense fallback={null}>
             {showHistory && <DocumentHistory />}
             {showComments && <DocumentComments />}
+            {showQualitativeAnalysis && <DocumentQualitativeAnalysis />}
           </React.Suspense>
         </Route>
       )}

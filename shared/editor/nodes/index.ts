@@ -11,6 +11,7 @@ import Highlight from "../marks/Highlight";
 import Italic from "../marks/Italic";
 import Link from "../marks/Link";
 import type Mark from "../marks/Mark";
+import QualitativeTag from "../marks/QualitativeTag";
 import TemplatePlaceholder from "../marks/Placeholder";
 import Strikethrough from "../marks/Strikethrough";
 import Underline from "../marks/Underline";
@@ -134,4 +135,5 @@ export const withComments = (nodes: Nodes) => [
   ...nodes.filter((node) => node !== Mention),
   Mention,
   Comment,
+  QualitativeTag,
 ];

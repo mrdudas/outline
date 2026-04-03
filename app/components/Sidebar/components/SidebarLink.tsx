@@ -124,15 +124,6 @@ function SidebarLink(
     [theme.text, theme.sidebarActiveBackground, style]
   );
 
-  const handleClick = React.useCallback(
-    (ev: React.MouseEvent<HTMLAnchorElement>) => {
-      if (onClick && !disabled && ev.isDefaultPrevented() === false) {
-        onClick(ev);
-      }
-    },
-    [onClick, disabled, expanded]
-  );
-
   const handleDisclosureClick = React.useCallback(
     (ev: React.MouseEvent<HTMLElement>) => {
       if (!hasDisclosure) {
@@ -145,6 +136,19 @@ function SidebarLink(
     [onDisclosureClick, hasDisclosure]
   );
 
+  const handleClick = React.useCallback(
+    (ev: React.MouseEvent<HTMLAnchorElement>) => {
+      if (active && hasDisclosure) {
+        handleDisclosureClick(ev);
+      }
+
+      if (onClick && !disabled && ev.isDefaultPrevented() === false) {
+        onClick(ev);
+      }
+    },
+    [active, hasDisclosure, handleDisclosureClick, onClick, disabled]
+  );
+
   const DisclosureComponent = icon ? HiddenDisclosure : Disclosure;
 
   return (
@@ -155,7 +159,6 @@ function SidebarLink(
       style={style}
       activeStyle={isActiveDrop ? activeDropStyle : activeStyle}
       onClick={handleClick}
-      onActiveClick={handleDisclosureClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onDragEnter={handleMouseEnter}
@@ -205,7 +208,7 @@ const Content = styled.span`
   min-width: 0;
 `;
 
-const Actions = styled(EventBoundary)<{ $showActions?: boolean }>`
+const Actions = styled(EventBoundary) <{ $showActions?: boolean }>`
   display: inline-flex;
   visibility: ${(props) => (props.$showActions ? "visible" : "hidden")};
   position: absolute;
@@ -240,7 +243,7 @@ const HiddenDisclosure = styled(Disclosure)`
   margin-right: 6px;
 `;
 
-const Link = styled(NavLink)<{
+const Link = styled(NavLink) <{
   $isActiveDrop?: boolean;
   $isDraft?: boolean;
   $disabled?: boolean;
@@ -330,7 +333,7 @@ const Link = styled(NavLink)<{
 
     &:hover {
       color: ${(props) =>
-        props.$isActiveDrop ? props.theme.white : props.theme.text};
+    props.$isActiveDrop ? props.theme.white : props.theme.text};
     }
   }
 

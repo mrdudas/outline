@@ -34,6 +34,7 @@ import ExtensionManager from "@shared/editor/lib/ExtensionManager";
 import type { MarkdownSerializer } from "@shared/editor/lib/markdown/serializer";
 import textBetween from "@shared/editor/lib/textBetween";
 import type Mark from "@shared/editor/marks/Mark";
+import { getMarkRange } from "@shared/editor/queries/getMarkRange";
 import { basicExtensions as extensions } from "@shared/editor/nodes";
 import type Node from "@shared/editor/nodes/Node";
 import type ReactNode from "@shared/editor/nodes/ReactNode";
@@ -156,6 +157,28 @@ export type Props = {
   /** Whether H1/H2/H3 headings in the document are automatically numbered */
   numberedHeadings?: boolean;
 };
+
+export interface QualitativeTagMark {
+  /** Unique annotation id in the document. */
+  id: string;
+  /** ID of the collection-level tag. */
+  tagId: string;
+  /** Short code shown next to underlined text. */
+  tagCode: string;
+  /** Hex color used for underline and code badge. */
+  color: string;
+  /** User who applied the tag. */
+  userId: string;
+}
+
+export interface QualitativeTagSnippet extends QualitativeTagMark {
+  /** Tagged text snippet in document order. */
+  text: string;
+  /** Start position of the snippet. */
+  from: number;
+  /** End position of the snippet. */
+  to: number;
+}
 
 type State = {
   /** If the document text has been detected as using RTL script */
@@ -463,7 +486,8 @@ export class Editor extends React.PureComponent<
       tr.steps.some(
         (step) =>
           (step instanceof AddMarkStep || step instanceof RemoveMarkStep) &&
-          step.mark.type.name === this.schema.marks.comment.name
+          (step.mark.type.name === "comment" ||
+            step.mark.type.name === "qualitativeTag")
       );
 
     const self = this; // oxlint-disable-line
@@ -783,6 +807,408 @@ export class Editor extends React.PureComponent<
     });
 
     dispatch(tr);
+  };
+
+  /**
+   * Apply a qualitative coding mark to the current selection.
+   *
+   * @param markAttrs mark attributes to apply.
+   * @returns true if mark was applied.
+   */
+  public addQualitativeTag = (markAttrs: QualitativeTagMark): boolean => {
+    const { state, dispatch } = this.view;
+    const markType = state.schema.marks.qualitativeTag;
+
+    if (!markType) {
+      return false;
+    }
+
+    if (state.selection instanceof TextSelection) {
+      if (state.selection.empty) {
+        return false;
+      }
+
+      const mark = markType.create(markAttrs);
+      const { from, to } = this.expandQualitativeTagRange(
+        state,
+        state.selection.from,
+        state.selection.to
+      );
+      dispatch(state.tr.addMark(from, to, mark));
+      return true;
+    }
+
+    if (state.selection.from === state.selection.to) {
+      return false;
+    }
+
+    const { selection } = state;
+    const existingMarks = Array.isArray(selection.$from.node().attrs?.marks)
+      ? selection.$from.node().attrs.marks
+      : [];
+    const newMark = {
+      type: "qualitativeTag",
+      attrs: markAttrs,
+    };
+
+    dispatch(
+      state.tr.setNodeMarkup(selection.from, undefined, {
+        ...selection.$from.node().attrs,
+        marks: [...existingMarks, newMark],
+      })
+    );
+
+    return true;
+  };
+
+  private expandQualitativeTagRange = (
+    state: EditorState,
+    from: number,
+    to: number
+  ) => {
+    return {
+      from: this.findWordBoundary(state, from, -1),
+      to: this.findWordBoundary(state, to, 1),
+    };
+  };
+
+  private findWordBoundary = (
+    state: EditorState,
+    position: number,
+    direction: -1 | 1
+  ) => {
+    const { doc } = state;
+    let currentPosition = position;
+
+    while (currentPosition > 0 && currentPosition < doc.content.size) {
+      const text =
+        direction < 0
+          ? doc.textBetween(currentPosition - 1, currentPosition)
+          : doc.textBetween(currentPosition, currentPosition + 1);
+
+      if (!text) {
+        break;
+      }
+
+      if (!/[\p{L}\p{N}_]/u.test(text)) {
+        break;
+      }
+
+      currentPosition += direction;
+    }
+
+    return currentPosition;
+  };
+  /**
+   * Remove all qualitative marks with the provided annotation id.
+   *
+   * @param id annotation id to remove.
+   */
+  public removeQualitativeTag = (id: string) => {
+    const { state, dispatch } = this.view;
+    const markType = state.schema.marks.qualitativeTag;
+
+    if (!markType) {
+      return;
+    }
+
+    const tr = state.tr;
+
+    state.doc.descendants((node, pos) => {
+      const mark = node.marks.find(
+        (m) => m.type === markType && m.attrs.id === id
+      );
+
+      if (mark) {
+        tr.removeMark(pos, pos + node.nodeSize, mark);
+      }
+
+      if (Array.isArray(node.attrs?.marks)) {
+        const marks = node.attrs.marks as Array<{
+          type: string;
+          attrs?: { id?: string };
+        }>;
+        const filteredMarks = marks.filter(
+          (candidate) =>
+            !(
+              candidate.type === "qualitativeTag" &&
+              candidate.attrs?.id === id
+            )
+        );
+
+        if (filteredMarks.length !== marks.length) {
+          tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            marks: filteredMarks,
+          });
+        }
+      }
+
+      return true;
+    });
+
+    dispatch(tr);
+  };
+
+  /**
+   * Remove all qualitative marks that belong to a specific tag definition.
+   *
+   * @param tagId the qualitative tag definition id.
+   */
+  public removeQualitativeTagByTagId = (tagId: string) => {
+    const { state, dispatch } = this.view;
+    const markType = state.schema.marks.qualitativeTag;
+
+    if (!markType) {
+      return;
+    }
+
+    const tr = state.tr;
+
+    state.doc.descendants((node, pos) => {
+      const mark = node.marks.find(
+        (m) => m.type === markType && m.attrs.tagId === tagId
+      );
+
+      if (mark) {
+        tr.removeMark(pos, pos + node.nodeSize, mark);
+      }
+
+      if (Array.isArray(node.attrs?.marks)) {
+        const marks = node.attrs.marks as Array<{
+          type: string;
+          attrs?: { tagId?: string };
+        }>;
+        const filteredMarks = marks.filter(
+          (candidate) =>
+            !(candidate.type === "qualitativeTag" && candidate.attrs?.tagId === tagId)
+        );
+
+        if (filteredMarks.length !== marks.length) {
+          tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            marks: filteredMarks,
+          });
+        }
+      }
+
+      return true;
+    });
+
+    dispatch(tr);
+  };
+
+  /**
+   * Update all qualitative marks that belong to a specific tag definition.
+   *
+   * @param tagId the qualitative tag definition id.
+   * @param attrs the attrs to update on matching marks.
+   */
+  public updateQualitativeTagByTagId = (
+    tagId: string,
+    attrs: { tagCode?: string; color?: string }
+  ) => {
+    const { state, dispatch } = this.view;
+    const markType = state.schema.marks.qualitativeTag;
+
+    if (!markType) {
+      return;
+    }
+
+    const tr = state.tr;
+    let markUpdated = false;
+
+    state.doc.descendants((node, pos) => {
+      const mark = node.marks.find(
+        (m) => m.type === markType && m.attrs.tagId === tagId
+      );
+
+      if (mark) {
+        const from = pos;
+        const to = pos + node.nodeSize;
+        const newMark = state.schema.marks.qualitativeTag.create({
+          ...mark.attrs,
+          ...attrs,
+        });
+
+        tr.removeMark(from, to, mark).addMark(from, to, newMark);
+        markUpdated = true;
+        return;
+      }
+
+      if (Array.isArray(node.attrs?.marks)) {
+        const marks = node.attrs.marks as Array<{
+          type: string;
+          attrs?: Record<string, string>;
+        }>;
+        const updatedMarks = marks.map((candidate) =>
+          candidate.type === "qualitativeTag" && candidate.attrs?.tagId === tagId
+            ? {
+              ...candidate,
+              attrs: {
+                ...candidate.attrs,
+                ...attrs,
+              },
+            }
+            : candidate
+        );
+
+        if (updatedMarks !== marks) {
+          tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            marks: updatedMarks,
+          });
+          markUpdated = true;
+        }
+      }
+
+      return true;
+    });
+
+    if (markUpdated) {
+      dispatch(tr);
+    }
+  };
+
+  /**
+   * Returns qualitative marks currently present in the user selection.
+   *
+   * @returns unique selected marks by annotation id.
+   */
+  public getSelectedQualitativeTags = (): QualitativeTagMark[] => {
+    const { state } = this.view;
+    const markType = state.schema.marks.qualitativeTag;
+
+    if (!markType) {
+      return [];
+    }
+
+    const byId = new Map<string, QualitativeTagMark>();
+
+    if (state.selection.empty) {
+      const cursorPositions = [0, -1, 1].map((offset) => state.selection.from + offset);
+
+      for (const position of cursorPositions) {
+        if (position < 0 || position > state.doc.content.size) {
+          continue;
+        }
+
+        const range = getMarkRange(state.doc.resolve(position), markType);
+
+        if (range?.mark?.attrs?.id) {
+          byId.set(range.mark.attrs.id, range.mark.attrs as QualitativeTagMark);
+
+          break;
+        }
+      }
+
+      return Array.from(byId.values());
+    }
+
+    state.doc.nodesBetween(state.selection.from, state.selection.to, (node) => {
+      node.marks.forEach((mark) => {
+        if (mark.type === markType && mark.attrs.id) {
+          byId.set(mark.attrs.id, mark.attrs as QualitativeTagMark);
+        }
+      });
+
+      if (Array.isArray(node.attrs?.marks)) {
+        const marks = node.attrs.marks as Array<{
+          type: string;
+          attrs?: QualitativeTagMark;
+        }>;
+
+        marks.forEach((mark) => {
+          if (mark.type === "qualitativeTag" && mark.attrs?.id) {
+            byId.set(mark.attrs.id, mark.attrs);
+          }
+        });
+      }
+    });
+
+    return Array.from(byId.values());
+  };
+
+  /**
+   * Returns all tagged text snippets in document order.
+   *
+   * @returns qualitative tag snippets with text and positions.
+   */
+  public getQualitativeTagSnippets = (): QualitativeTagSnippet[] => {
+    const { state } = this.view;
+    const markType = state.schema.marks.qualitativeTag;
+
+    if (!markType) {
+      return [];
+    }
+
+    const snippets: QualitativeTagSnippet[] = [];
+
+    state.doc.descendants((node, pos) => {
+      if (!node.isText || !node.text) {
+        return true;
+      }
+
+      const text = node.text;
+      const from = pos;
+      const to = pos + node.nodeSize;
+
+      node.marks.forEach((mark) => {
+        if (mark.type !== markType || !mark.attrs.id) {
+          return;
+        }
+
+        const previous = snippets[snippets.length - 1];
+
+        if (
+          previous &&
+          previous.id === mark.attrs.id &&
+          previous.to === from
+        ) {
+          previous.text += text;
+          previous.to = to;
+          return;
+        }
+
+        snippets.push({
+          ...(mark.attrs as QualitativeTagMark),
+          text,
+          from,
+          to,
+        });
+      });
+
+      return true;
+    });
+
+    return snippets
+      .map((snippet) => ({
+        ...snippet,
+        text: snippet.text.replace(/\s+/g, " ").trim(),
+      }))
+      .filter((snippet) => snippet.text.length > 0);
+  };
+
+  /**
+   * Focuses the editor and moves caret to the provided snippet start.
+   *
+   * @param from snippet start position.
+   * @param to snippet end position.
+   */
+  public focusQualitativeTagSnippet = (from: number, to: number) => {
+    const { state } = this.view;
+    const docSize = state.doc.content.size;
+
+    const safeFrom = Math.max(0, Math.min(from, docSize));
+    const safeTo = Math.max(safeFrom, Math.min(to, docSize));
+
+    const selection = TextSelection.near(
+      state.doc.resolve(safeFrom < safeTo ? safeFrom : safeTo),
+      1
+    );
+    const transaction = state.tr.setSelection(selection).scrollIntoView();
+    this.view.dispatch(transaction);
+    this.view.focus();
   };
 
   public updateActiveLightboxImage = (activeImage: LightboxImage | null) => {

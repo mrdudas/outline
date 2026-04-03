@@ -77,6 +77,9 @@ export const Wrapper = styled.div<{
   minWidth?: number;
   maxHeight?: number;
 }>`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   flex: ${(props) => (props.flex ? "1" : "0")};
   width: ${(props) => (props.short ? "49%" : "auto")};
   max-width: ${(props) => (props.short ? "350px" : "100%")};
@@ -92,14 +95,13 @@ const IconWrapper = styled.span`
   height: 24px;
 `;
 
-export const Outline = styled(Flex)<{
+export const Outline = styled(Flex) <{
   margin?: string | number;
   hasError?: boolean;
   $focused?: boolean;
 }>`
   flex: 1;
-  margin: ${(props) =>
-    props.margin !== undefined ? props.margin : "0 0 16px"};
+  margin: ${(props) => (props.margin !== undefined ? props.margin : "0")};
   color: inherit;
   border-width: 1px;
   border-style: solid;
@@ -121,8 +123,8 @@ export const Outline = styled(Flex)<{
 
 export const LabelText = styled.div`
   font-weight: 500;
-  padding-bottom: 4px;
-  display: inline-block;
+  padding-bottom: 2px;
+  display: block;
 `;
 
 export interface Props extends Omit<
@@ -195,6 +197,8 @@ function Input(
     }
   }, [props.autoSelect, internalRef]);
 
+  const inputIdRef = React.useRef(`input-${Math.random().toString(36).slice(2, 11)}`);
+
   const {
     type = "text",
     icon,
@@ -217,49 +221,51 @@ function Input(
 
   return (
     <Wrapper className={className} short={short} flex={flex}>
-      <label>
-        {label &&
-          (labelHidden ? (
-            <VisuallyHidden.Root>{wrappedLabel}</VisuallyHidden.Root>
-          ) : (
-            wrappedLabel
-          ))}
-        <Outline $focused={focused} margin={margin}>
-          {prefix}
-          {icon && <IconWrapper>{icon}</IconWrapper>}
-          {type === "textarea" ? (
-            <NativeTextarea
-              ref={mergeRefs([
-                internalRef,
-                ref as React.RefObject<HTMLTextAreaElement>,
-              ])}
-              onBlur={handleBlur}
-              onFocus={handleFocus}
-              hasIcon={!!icon}
-              hasPrefix={!!prefix}
-              {...rest}
-              // set it after "rest" to override "onKeyDown" from prop.
-              onKeyDown={handleKeyDown}
-            />
-          ) : (
-            <NativeInput
-              ref={mergeRefs([
-                internalRef,
-                ref as React.RefObject<HTMLInputElement>,
-              ])}
-              onBlur={handleBlur}
-              onFocus={handleFocus}
-              hasIcon={!!icon}
-              hasPrefix={!!prefix}
-              type={type}
-              {...rest}
-              // set it after "rest" to override "onKeyDown" from prop.
-              onKeyDown={handleKeyDown}
-            />
-          )}
-          {children}
-        </Outline>
-      </label>
+      {label &&
+        (labelHidden ? (
+          <VisuallyHidden.Root>{wrappedLabel}</VisuallyHidden.Root>
+        ) : (
+          <LabelText as="label" htmlFor={inputIdRef.current}>
+            {label}
+          </LabelText>
+        ))}
+      <Outline $focused={focused} margin={margin}>
+        {prefix}
+        {icon && <IconWrapper>{icon}</IconWrapper>}
+        {type === "textarea" ? (
+          <NativeTextarea
+            id={inputIdRef.current}
+            ref={mergeRefs([
+              internalRef,
+              ref as React.RefObject<HTMLTextAreaElement>,
+            ])}
+            onBlur={handleBlur}
+            onFocus={handleFocus}
+            hasIcon={!!icon}
+            hasPrefix={!!prefix}
+            {...rest}
+            // set it after "rest" to override "onKeyDown" from prop.
+            onKeyDown={handleKeyDown}
+          />
+        ) : (
+          <NativeInput
+            id={inputIdRef.current}
+            ref={mergeRefs([
+              internalRef,
+              ref as React.RefObject<HTMLInputElement>,
+            ])}
+            onBlur={handleBlur}
+            onFocus={handleFocus}
+            hasIcon={!!icon}
+            hasPrefix={!!prefix}
+            type={type}
+            {...rest}
+            // set it after "rest" to override "onKeyDown" from prop.
+            onKeyDown={handleKeyDown}
+          />
+        )}
+        {children}
+      </Outline>
       {error && (
         <TextWrapper>
           <Text type="danger" size="xsmall">
@@ -274,7 +280,7 @@ function Input(
 export const TextWrapper = styled.span`
   min-height: 16px;
   display: block;
-  margin-top: -16px;
+  margin-top: 0;
 `;
 
 export default React.forwardRef(Input);

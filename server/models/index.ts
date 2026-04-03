@@ -42,6 +42,8 @@ export { default as OAuthClient } from "./oauth/OAuthClient";
 
 export { default as Pin } from "./Pin";
 
+export { default as QualitativeTag } from "./QualitativeTag";
+
 export { default as Reaction } from "./Reaction";
 
 export { default as Revision } from "./Revision";

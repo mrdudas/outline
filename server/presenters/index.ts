@@ -15,6 +15,7 @@ import presentIntegration from "./integration";
 import presentMembership from "./membership";
 import presentOAuthClient, { presentPublishedOAuthClient } from "./oauthClient";
 import presentPin from "./pin";
+import presentQualitativeTag from "./qualitativeTag";
 import presentPolicies from "./policy";
 import presentProviderConfig from "./providerConfig";
 import presentPublicTeam from "./publicTeam";
@@ -51,6 +52,7 @@ export {
   presentPublishedOAuthClient,
   presentPublicTeam,
   presentPin,
+  presentQualitativeTag,
   presentPolicies,
   presentProviderConfig,
   presentReaction,

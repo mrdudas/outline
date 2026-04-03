@@ -117,16 +117,15 @@ export const renderApp = async (
   const environment = `
     <script nonce="${ctx.state.cspNonce}">
       window.env = ${JSON.stringify(presentEnv(env, options)).replace(
-        /</g,
-        "\\u003c"
-      )};
+    /</g,
+    "\\u003c"
+  )};
     </script>
   `;
 
   const scriptTags = env.isProduction
-    ? `<script type="module" nonce="${ctx.state.cspNonce}" src="${
-        env.CDN_URL || ""
-      }/static/${readManifestFile()[entry]["file"]}"></script>`
+    ? `<script type="module" nonce="${ctx.state.cspNonce}" src="${env.CDN_URL || ""
+    }/static/${readManifestFile()[entry]["file"]}"></script>`
     : `<script type="module" nonce="${ctx.state.cspNonce}">
         import RefreshRuntime from "${viteHost}/static/@react-refresh"
         RefreshRuntime.injectIntoGlobalHook(window)
@@ -156,7 +155,7 @@ export const renderApp = async (
   } else {
     headTags += prefetchTags;
     headTags += `
-    <link rel="manifest" href="/static/manifest.webmanifest" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link
       rel="apple-touch-icon"
       type="image/png"
@@ -300,22 +299,21 @@ export const renderShare = async (ctx: Context, next: Next) => {
   const content =
     document || collection
       ? await DocumentHelper.toHTML(document || collection!, {
-          includeStyles: false,
-          includeHead: false,
-          includeTitle: true,
-          signedUrls: true,
-        })
+        includeStyles: false,
+        includeHead: false,
+        includeTitle: true,
+        signedUrls: true,
+      })
       : undefined;
 
   const canonicalUrl =
     share && share.canonicalUrl !== ctx.request.origin + ctx.request.url
-      ? `${share.canonicalUrl}${
-          documentSlug && document
-            ? document.path
-            : collectionSlug && collection
-              ? collection.path
-              : ""
-        }`
+      ? `${share.canonicalUrl}${documentSlug && document
+        ? document.path
+        : collectionSlug && collection
+          ? collection.path
+          : ""
+      }`
       : undefined;
 
   // Inject share information in SSR HTML

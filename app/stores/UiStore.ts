@@ -29,6 +29,7 @@ type PersistedData = Pick<
   UiStore,
   | "languagePromptDismissed"
   | "commentsExpanded"
+  | "qualitativeAnalysisExpanded"
   | "theme"
   | "sidebarWidth"
   | "sidebarRightWidth"
@@ -81,6 +82,9 @@ class UiStore {
   commentsExpanded = false;
 
   @observable
+  qualitativeAnalysisExpanded = false;
+
+  @observable
   sidebarIsResizing = false;
 
   @observable
@@ -112,6 +116,7 @@ class UiStore {
       data.sidebarRightWidth || defaultTheme.sidebarRightWidth;
     this.tocVisible = data.tocVisible;
     this.commentsExpanded = !!data.commentsExpanded;
+    this.qualitativeAnalysisExpanded = !!data.qualitativeAnalysisExpanded;
     this.theme = data.theme || Theme.System;
 
     // system theme listeners
@@ -342,7 +347,18 @@ class UiStore {
 
   @action
   toggleComments = () => {
-    this.set({ commentsExpanded: !this.commentsExpanded });
+    this.set({
+      commentsExpanded: !this.commentsExpanded,
+      qualitativeAnalysisExpanded: false,
+    });
+  };
+
+  @action
+  toggleQualitativeAnalysis = () => {
+    this.set({
+      qualitativeAnalysisExpanded: !this.qualitativeAnalysisExpanded,
+      commentsExpanded: false,
+    });
   };
 
   @action
@@ -434,6 +450,7 @@ class UiStore {
       sidebarRightWidth: this.sidebarRightWidth,
       languagePromptDismissed: this.languagePromptDismissed,
       commentsExpanded: this.commentsExpanded,
+      qualitativeAnalysisExpanded: this.qualitativeAnalysisExpanded,
       theme: this.theme,
     };
   }

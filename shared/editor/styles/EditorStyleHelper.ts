@@ -22,6 +22,12 @@ export class EditorStyleHelper {
 
   static readonly comment = "comment-marker";
 
+  // Qualitative analysis
+
+  static readonly qualitativeTag = "qualitative-tag-marker";
+  static readonly qualitativeTagCode = "qualitative-tag-code";
+  static readonly qualitativeTagRemove = "qualitative-tag-remove";
+
   // Code
 
   static readonly codeWord = "code-word";

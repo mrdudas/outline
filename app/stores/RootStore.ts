@@ -23,6 +23,7 @@ import OAuthAuthenticationsStore from "./OAuthAuthenticationsStore";
 import OAuthClientsStore from "./OAuthClientsStore";
 import PinsStore from "./PinsStore";
 import PoliciesStore from "./PoliciesStore";
+import QualitativeTagsStore from "./QualitativeTagsStore";
 import RevisionsStore from "./RevisionsStore";
 import SearchesStore from "./SearchesStore";
 import SharesStore from "./SharesStore";
@@ -59,6 +60,7 @@ export default class RootStore {
   presence: DocumentPresenceStore;
   pins: PinsStore;
   policies: PoliciesStore;
+  qualitativeTags: QualitativeTagsStore;
   revisions: RevisionsStore;
   searches: SearchesStore;
   shares: SharesStore;
@@ -92,6 +94,7 @@ export default class RootStore {
     this.registerStore(OAuthAuthenticationsStore, "oauthAuthentications");
     this.registerStore(OAuthClientsStore, "oauthClients");
     this.registerStore(PinsStore);
+    this.registerStore(QualitativeTagsStore);
     this.registerStore(PoliciesStore);
     this.registerStore(RevisionsStore);
     this.registerStore(SearchesStore);

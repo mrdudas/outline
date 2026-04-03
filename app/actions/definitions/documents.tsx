@@ -1416,6 +1416,29 @@ export const openDocumentComments = createAction({
   },
 });
 
+export const openDocumentQualitativeAnalysis = createAction({
+  name: ({ t }) => t("Qualitative analysis / Kvalitativ elemzes"),
+  analyticsName: "Open qualitative analysis",
+  section: ActiveDocumentSection,
+  icon: <ShapesIcon />,
+  visible: ({ activeDocumentId, stores }) => {
+    const can = stores.policies.abilities(activeDocumentId ?? "");
+
+    return (
+      !!activeDocumentId &&
+      can.comment &&
+      !!stores.auth.team?.getPreference(TeamPreference.Commenting)
+    );
+  },
+  perform: ({ activeDocumentId, stores }) => {
+    if (!activeDocumentId) {
+      return;
+    }
+
+    stores.ui.toggleQualitativeAnalysis();
+  },
+});
+
 export const openDocumentHistory = createInternalLinkAction({
   name: ({ t }) => t("History"),
   analyticsName: "Open document history",
@@ -1565,6 +1588,7 @@ export const rootDocumentActions = [
   pinDocumentToCollection,
   pinDocumentToHome,
   openDocumentComments,
+  openDocumentQualitativeAnalysis,
   openDocumentHistory,
   openDocumentInsights,
   shareDocument,

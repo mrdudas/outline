@@ -1294,6 +1294,62 @@ h6 {
   opacity: 1;
 }
 
+.${EditorStyleHelper.qualitativeTag} {
+  display: inline;
+  margin: 0;
+  padding: 0 2px;
+  border-radius: 3px;
+  background-color: var(--qualitative-tag-color, ${props.theme.commentMarkBackground});
+  color: #ffffff;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  user-select: text;
+  position: relative;
+  vertical-align: baseline;
+
+  &::before {
+    content: attr(data-tag-code);
+    display: inline-flex;
+    align-items: center;
+    margin-right: 4px;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  &::after {
+    content: "×";
+    display: inline-block;
+    margin-left: 4px;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: middle;
+  }
+}
+
+.${EditorStyleHelper.qualitativeTagCode} {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  user-select: none;
+}
+
 ${props.commenting
     ? `
 .${EditorStyleHelper.comment} {
@@ -2557,6 +2613,11 @@ del {
   }
 
   .${EditorStyleHelper.comment} {
+    border: 0;
+    background: none;
+  }
+
+  .${EditorStyleHelper.qualitativeTag} {
     border: 0;
     background: none;
   }
