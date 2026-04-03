@@ -46,6 +46,7 @@ import MembershipPreview from "./components/MembershipPreview";
 import Navigation, { CollectionTab } from "./components/Navigation";
 import Notices from "./components/Notices";
 import Overview from "./components/Overview";
+import QualitativeStatistics from "./components/QualitativeStatistics";
 import { Header } from "./components/Header";
 import usePersistedState from "~/hooks/usePersistedState";
 import useCurrentUser from "~/hooks/useCurrentUser";
@@ -296,6 +297,15 @@ const CollectionScene = observer(function CollectionScene_() {
                         collectionId: collection.id,
                       }}
                     />
+                  </Route>
+                  <Route
+                    path={collectionPath(
+                      collection,
+                      CollectionTab.QualitativeStatistics
+                    )}
+                    exact
+                  >
+                    <QualitativeStatistics collection={collection} />
                   </Route>
                   <Route
                     path={collectionPath(collection, CollectionTab.Recent)}

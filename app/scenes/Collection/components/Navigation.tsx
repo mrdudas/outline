@@ -9,6 +9,7 @@ import { type SidebarContextType } from "~/components/Sidebar/components/Sidebar
 export enum CollectionTab {
   Overview = "overview",
   Recent = "recent",
+  QualitativeStatistics = "qualitative-statistics",
   Popular = "popular",
   Updated = "updated",
   Published = "published",
@@ -58,6 +59,9 @@ const Navigation = observer(function Navigation({
       <Tab {...tabProps(CollectionTab.Recent)}>{t("Documents")}</Tab>
       {!collection.isArchived && (
         <>
+          <Tab {...tabProps(CollectionTab.QualitativeStatistics)}>
+            {t("Qualitative statistics")}
+          </Tab>
           <Tab {...tabProps(CollectionTab.Popular)}>{t("Popular")}</Tab>
           <Tab {...tabProps(CollectionTab.Updated)}>
             {t("Recently updated")}

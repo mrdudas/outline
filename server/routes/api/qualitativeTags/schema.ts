@@ -13,6 +13,16 @@ export const QualitativeTagsListSchema = BaseSchema.extend({
 
 export type QualitativeTagsListReq = z.infer<typeof QualitativeTagsListSchema>;
 
+export const QualitativeTagsStatisticsSchema = BaseSchema.extend({
+    body: z.object({
+        collectionId: z.uuid(),
+    }),
+});
+
+export type QualitativeTagsStatisticsReq = z.infer<
+    typeof QualitativeTagsStatisticsSchema
+>;
+
 export const QualitativeTagsCreateSchema = BaseSchema.extend({
     body: z.object({
         collectionId: z.uuid(),
